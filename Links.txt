@@ -1,0 +1,4 @@
+Documentação EvolutionAPI: https://doc.evolution-api.com/v2/pt/get-started/introduction
+API do EvolutionAPI: https://doc.evolution-api.com/v1/api-reference/get-information
+
+docker-compose up --build
