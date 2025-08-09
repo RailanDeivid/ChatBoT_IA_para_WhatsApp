@@ -6,5 +6,6 @@ API do EvolutionAPI: https://doc.evolution-api.com/v1/api-reference/get-informat
 
 docker-compose up --build
 
+docker-compose restart
 
 https://whimsical.com/chatbot-ia-wpp-3UnxLG5rttYNg3qasG46zf

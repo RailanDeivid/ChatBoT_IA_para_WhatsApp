@@ -7,6 +7,7 @@ COPY requirements.txt .
 RUN apt update
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install pymysql 
 
 COPY . .
 EXPOSE 8000
