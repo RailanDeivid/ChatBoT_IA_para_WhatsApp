@@ -45,9 +45,30 @@ services:
     depends_on:
       - evolution-api
       - redis
+      - db
     restart: always
+    # volumes:
+      # - ./vectorstore_data:/app/vectorstore
+      # - ./rag_files:/app/rag_files
+
+  db:
+    image: mysql:8.0
+    container_name: mysql_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysqldata:/var/lib/mysql
 
 volumes:
   evolution_instances:
   postgres_data:
   redis:
+  vectorstore_data:
+  rag_files:
+  mysqldata:
