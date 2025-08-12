@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 
-from message_buffer import buffer_message
+from src.message_buffer import buffer_message
 
 
 app = FastAPI()
