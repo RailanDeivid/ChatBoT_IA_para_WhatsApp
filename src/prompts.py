@@ -1,6 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-from src.config import (
+from config import (
     AI_CONTEXTUALIZE_PROMPT,
     AI_SYSTEM_PROMPT,
 )
