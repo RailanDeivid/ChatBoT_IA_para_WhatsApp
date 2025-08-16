@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from src.evolution_api import send_watsapp_message
+from src.evolution_api import send_whatsapp_message
 
 import os
 from langchain import hub
@@ -75,7 +75,7 @@ async def webhook(request: Request):
     if chat_id and message and "@g.us" not in chat_id:
         if chat_id not in conversas:
             # Primeira mensagem: responde com saudação
-            send_watsapp_message(
+            send_whatsapp_message(
                 number=chat_id,
                 text="Qual sua dúvida, como posso te ajudar?"
             )
@@ -87,7 +87,7 @@ async def webhook(request: Request):
                 prompt = prompt_template.format(q=message)
                 output = agent_executor.invoke({"input": prompt})
                 resposta = output.get('output', 'Desculpe, não consegui responder sua pergunta no momento.')
-                send_watsapp_message(
+                send_whatsapp_message(
                     number=chat_id,
                     text=resposta
                 )
@@ -95,31 +95,3 @@ async def webhook(request: Request):
                 print("Erro ao enviar mensagem ou processar a pergunta:", e)
 
     return {"status": "ok"}
-
-
-# from fastapi import FastAPI, Request
-# from src.evolution_api import send_watsapp_message
-
-
-# app = FastAPI()
-
-# @app.post("/webhook")
-# async def webhook(request: Request):
-#     data = await request.json()
-#     print("Recebido no webhook:", data)
-    
-#     chat_id = data.get("data", {}).get("key", {}).get("remoteJid")
-#     message = data.get("data", {}).get("message", {}).get("conversation")
-    
-#     if chat_id and message and "@g.us" not in chat_id:
-#         try:
-#             send_watsapp_message(
-#                 number=chat_id,
-#                 text="Olá, recebi sua mensagem e vou analisar. Em breve retornarei com uma resposta."
-#             )
-#         except Exception as e:
-#             print("Erro ao enviar mensagem:", e)
-
-#     return {"status": "ok"}
-
-# ----------------------------------------------------------------------------------------------
