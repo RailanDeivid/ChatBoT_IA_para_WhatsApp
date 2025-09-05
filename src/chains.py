@@ -2,14 +2,19 @@ from langchain.chains import create_history_aware_retriever, create_retrieval_ch
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
+
 
 from src.config import (
     OPENAI_MODEL_NAME,
     OPENAI_MODEL_TEMPERATURE,
+    GROQ_MODEL_NAME,
+    GROQ_MODEL_TEMPERATURE
 )
 from src.memory import get_session_history
 from src.vectorstore import get_vectorstore
 from src.prompts import contextualize_prompt, qa_prompt
+
 
 
 def get_rag_chain():
