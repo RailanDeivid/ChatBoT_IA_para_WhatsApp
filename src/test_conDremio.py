@@ -10,7 +10,6 @@ DREMIO_HOST = os.getenv("DREMIO_HOST")
 DREMIO_USER = os.getenv("DREMIO_USER")
 DREMIO_PASSWORD = os.getenv("DREMIO_PASSWORD")
 
-
 class DremioClient:
     def __init__(self, host, username, password):
         self.host = host
@@ -33,7 +32,6 @@ class DremioClient:
         return self._get_results(job_id)
 
     def _get_results(self, job_id):
-
         while True:
             status_res = requests.get(f"http://{self.host}/api/v3/job/{job_id}", headers=self.headers)
             if status_res.json().get("jobState") == "COMPLETED":
