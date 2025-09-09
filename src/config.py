@@ -38,3 +38,6 @@ DB_NAME = os.getenv("DB_NAME")
 DB_HOST = os.getenv("DB_HOST")
 STRING_CONEXAO = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
+DREMIO_HOST = os.getenv("DREMIO_HOST")
+DREMIO_USER = os.getenv("DREMIO_USER")
+DREMIO_PASSWORD = os.getenv("DREMIO_PASSWORD")
