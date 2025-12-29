@@ -48,5 +48,18 @@ client = DremioClient(
             password=DREMIO_PASSWORD
         )
 
-df = client.execute_query("SELECT * FROM datalake.ouro.fat_vendas LIMIT 10")
-print(df)
+df = client.execute_query("""SELECT 
+codigo_casa, 
+cast(data_evento as date) AS DATA, 
+--descricao_produto, 
+sum(valor_liquido) as gorjeta_geral,
+sum(valor_liquido*0.025) as tx_cartao,
+sum(valor_liquido*0.33) as retencao_33,
+sum(valor_liquido-((valor_liquido*0.025)+(valor_liquido*0.33))) as Saldo_33_cartão,
+sum((valor_liquido-((valor_liquido*0.025)+(valor_liquido*0.33)))*0.11) as areas_apoio,
+(Saldo_33_cartão-areas_apoio) as valor
+FROM datalake.ouro."fat_vendas"
+where cast(data_evento as date) BETWEEN '2025-10-30' AND '2025-11-12' and codigo_casa = 'TBB'and
+(ilike(descricao_produto,'%gorjeta%') or ilike(descricao_produto,'%repique%'))
+GROUP BY 1,2""")
+print(df.shape)
