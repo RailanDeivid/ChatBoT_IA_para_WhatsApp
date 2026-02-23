@@ -1,6 +1,6 @@
 from langchain.tools import BaseTool
 
-from src.dremio_connector import client
+from src.connectors.dremio import client
 
 
 class DremioSalesQueryTool(BaseTool):

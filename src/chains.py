@@ -8,8 +8,8 @@ from src.config import (
 )
 from src.memory import get_session_history
 from src.prompts import sql_agent_prompt
-from src.dremio_tools import DremioSalesQueryTool
-from src.mysql_tools import MySQLPurchasesQueryTool
+from src.tools.dremio_tools import DremioSalesQueryTool
+from src.tools.mysql_tools import MySQLPurchasesQueryTool
 
 
 model = ChatOpenAI(

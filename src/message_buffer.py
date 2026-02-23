@@ -4,7 +4,7 @@ import redis.asyncio as redis
 from collections import defaultdict
 
 from src.config import REDIS_URL, BUFFER_KEY_SUFIX, DEBOUNCE_SECONDS, BUFFER_TTL
-from src.evolution_api import send_whatsapp_message
+from src.integrations.evolution_api import send_whatsapp_message
 from src.chains import invoke_sql_agent
 
 

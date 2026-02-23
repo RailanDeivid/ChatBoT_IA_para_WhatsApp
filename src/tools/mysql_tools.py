@@ -1,6 +1,6 @@
 from langchain.tools import BaseTool
 
-from src.mysql_connector import client
+from src.connectors.mysql import client
 
 
 class MySQLPurchasesQueryTool(BaseTool):
