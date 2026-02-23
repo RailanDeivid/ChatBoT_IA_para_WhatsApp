@@ -1,14 +1,3 @@
-
-Instruções para instalação do Docker em anexo.
 Documentação EvolutionAPI: https://doc.evolution-api.com/v2/pt/get-started/introduction
 API do EvolutionAPI: https://doc.evolution-api.com/v1/api-reference/get-information
-
-
-docker-compose up --build
-
-docker-compose restart
-
 https://whimsical.com/chatbot-ia-wpp-3UnxLG5rttYNg3qasG46zf
-
-
-AI_SYSTEM_PROMPT='Você é um assistente virtual que irá responder dúvidas sobre compras de restaurantes e bares. Use os seguintes trechos de contexto recuperado para responder à pergunta. Se você não souber a resposta, diga que não sabe. Use no máximo três frases e mantenha a resposta concisa. {context}'

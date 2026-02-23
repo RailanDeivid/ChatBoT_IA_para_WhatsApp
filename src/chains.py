@@ -12,25 +12,33 @@ from src.tools.dremio_tools import DremioSalesQueryTool
 from src.tools.mysql_tools import MySQLPurchasesQueryTool
 
 
+print('[CHAINS] Carregando modelo e ferramentas...', flush=True)
+
 model = ChatOpenAI(
     model=OPENAI_MODEL_NAME,
-    temperature=OPENAI_MODEL_TEMPERATURE,
+    temperature=float(OPENAI_MODEL_TEMPERATURE),
 )
 
 tools = [DremioSalesQueryTool(), MySQLPurchasesQueryTool()]
-system_message = hub.pull('hwchase17/react')
+
+print('[CHAINS] Baixando prompt do LangChain Hub...', flush=True)
+react_prompt = hub.pull('hwchase17/react')
+print('[CHAINS] Prompt carregado. Criando agente...', flush=True)
 
 agent = create_react_agent(
     llm=model,
     tools=tools,
-    prompt=system_message,
+    prompt=react_prompt,
 )
 
 agent_executor = AgentExecutor(
     agent=agent,
     tools=tools,
     verbose=True,
+    handle_parsing_errors=True,
 )
+
+print('[CHAINS] Agente pronto.', flush=True)
 
 
 def invoke_sql_agent(message: str, session_id: str) -> str:
@@ -39,18 +47,19 @@ def invoke_sql_agent(message: str, session_id: str) -> str:
     history_text = ""
     messages = history.messages
     if messages:
-        history_text = "\n\nHistorico da conversa:\n"
-        for msg in messages[-10:]:
+        history_text = "Contexto do historico recente (use apenas para continuidade, NAO reutilize respostas anteriores):\n"
+        for msg in messages[-6:]:
             role = "Usuario" if msg.type == "human" else "Assistente"
             history_text += f"{role}: {msg.content}\n"
+        history_text += "\n"
 
-    formatted_prompt = sql_agent_prompt.format(q=message) + history_text
+    formatted_prompt = history_text + sql_agent_prompt.format(q=message)
 
     try:
         result = agent_executor.invoke({'input': formatted_prompt})
         response = result.get('output', 'Desculpe, nao consegui responder sua pergunta no momento.')
     except Exception as e:
-        print(f"Erro no agente: {e}")
+        print(f"[CHAINS] Erro no agente: {e}", flush=True)
         response = 'Desculpe, ocorreu um erro ao processar sua pergunta.'
 
     history.add_user_message(message)

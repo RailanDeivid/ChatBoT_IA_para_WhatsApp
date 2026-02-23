@@ -1,7 +1,7 @@
 services:
   evolution-api:
     container_name: evolution_api
-    image: atendai/evolution-api:latest
+    image: evoapicloud/evolution-api:latest
     restart: always
     ports:
       - "8080:8080"
@@ -47,23 +47,9 @@ services:
     depends_on:
       - evolution-api
       - redis
-      - db
     restart: always
-
-  db:
-    image: mysql:8.0
-    container_name: mysql_db
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-      MYSQL_DATABASE: ${DB_NAME}
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysqldata:/var/lib/mysql
 
 volumes:
   evolution_instances:
   postgres_data:
   redis:
-  mysqldata:

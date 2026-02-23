@@ -8,6 +8,7 @@ app = FastAPI()
 
 @app.post('/webhook')
 async def webhook(request: Request):
+    
     data = await request.json()
     print("Recebido no webhook:", data)
 
