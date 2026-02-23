@@ -1,4 +1,4 @@
-# NINOIA — ChatBot IA para WhatsApp
+# ChatBot IA para WhatsApp
 
 Assistente inteligente integrado ao WhatsApp que responde perguntas de negócio para bares e restaurantes consultando dados em tempo real via Dremio (vendas) e MySQL (compras).
 
