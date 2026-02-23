@@ -37,14 +37,15 @@ agent_executor = AgentExecutor(
     verbose=True,
     handle_parsing_errors="Se nao precisar usar ferramentas, responda com: Final Answer: [sua resposta]. Nunca responda sem usar esse formato.",
     max_iterations=8,
-    max_execution_time=240,
+    max_execution_time=300,
 )
 
 print('[CHAINS] Agente pronto.', flush=True)
 
 
-def invoke_sql_agent(message: str, session_id: str) -> str:
+def invoke_sql_agent(message: str, session_id: str, sender_name: str = "") -> str:
     history = get_session_history(session_id)
+    is_first_message = len(history.messages) == 0
 
     history_text = ""
     messages = history.messages
@@ -55,7 +56,25 @@ def invoke_sql_agent(message: str, session_id: str) -> str:
             history_text += f"{role}: {msg.content}\n"
         history_text += "\n"
 
-    formatted_prompt = history_text + sql_agent_prompt.format(q=message)
+    if sender_name and is_first_message:
+        name_context = (
+            f"O nome do usuario no WhatsApp e: {sender_name}. "
+            f"Esta e a PRIMEIRA mensagem dele. Cumprimente-o pelo nome com: "
+            f"'Ola {sender_name}, sou o NINO IA, seu assistente inteligente! Em que posso ajudar hoje?' "
+            f"e em seguida responda a pergunta dele.\n\n"
+        )
+    elif is_first_message:
+        name_context = (
+            "Esta e a PRIMEIRA mensagem do usuario e ele nao possui nome cadastrado no WhatsApp. "
+            "Cumprimente-o com: 'Ola! Sou o NINO IA, seu assistente inteligente! Em que posso ajudar hoje?' "
+            "e em seguida responda a pergunta dele.\n\n"
+        )
+    elif sender_name:
+        name_context = f"O nome do usuario no WhatsApp e: {sender_name}.\n\n"
+    else:
+        name_context = ""
+
+    formatted_prompt = name_context + history_text + sql_agent_prompt.format(q=message)
 
     try:
         result = agent_executor.invoke({'input': formatted_prompt})

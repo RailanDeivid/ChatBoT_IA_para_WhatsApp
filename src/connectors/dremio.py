@@ -1,15 +1,12 @@
+import time
 import pandas as pd
 import requests
-import time
 
-from src.config import (
-    DREMIO_HOST,
-    DREMIO_USER,
-    DREMIO_PASSWORD
-)
+from src.config import DREMIO_HOST, DREMIO_USER, DREMIO_PASSWORD
 
-# Cache do token para evitar login a cada query
-_token_cache: dict = {}
+
+_token_cache: dict[str, tuple[str, float]] = {}  # key -> (token, timestamp)
+_TOKEN_TTL = 3600  # tokens Dremio duram ~1h; renova por tempo sem chamada extra
 
 
 def _get_token(host: str, username: str, password: str) -> str:
@@ -17,68 +14,61 @@ def _get_token(host: str, username: str, password: str) -> str:
     cached = _token_cache.get(cache_key)
 
     if cached:
-        # Valida se o token ainda funciona
-        test = requests.get(
-            f"http://{host}/api/v3/catalog",
-            headers={"Authorization": f"_dremio{cached}"},
-            timeout=5,
-        )
-        if test.status_code == 200:
-            return cached
+        token, created_at = cached
+        if time.time() - created_at < _TOKEN_TTL:
+            return token
 
-    # Login
     login_res = requests.post(
         f"http://{host}/apiv2/login",
         json={"userName": username, "password": password},
         timeout=10,
     )
     login_res.raise_for_status()
-    token = login_res.json().get("token")
-    _token_cache[cache_key] = token
+    token = login_res.json()["token"]
+    _token_cache[cache_key] = (token, time.time())
     return token
 
 
-def client(sql, host=None, username=None, password=None):
-    """
-    Executa uma query SQL no Dremio e retorna um DataFrame.
-
-    Args:
-        sql (str): Query SQL a ser executada
-        host (str, optional): Host do Dremio. Se None, usa DREMIO_HOST do .env
-        username (str, optional): Usuário. Se None, usa DREMIO_USER do .env
-        password (str, optional): Senha. Se None, usa DREMIO_PASSWORD do .env
-
-    Returns:
-        pd.DataFrame: Resultado da query
-    """
-    host = host or DREMIO_HOST
-    username = username or DREMIO_USER
-    password = password or DREMIO_PASSWORD
-
-    if not all([host, username, password]):
-        raise ValueError("Host, username e password são obrigatórios")
-
-    token = _get_token(host, username, password)
+def client(sql: str) -> pd.DataFrame:
+    """Executa query SQL no Dremio e retorna DataFrame."""
+    print("[DREMIO] Obtendo token...", flush=True)
+    token = _get_token(DREMIO_HOST, DREMIO_USER, DREMIO_PASSWORD)
     headers = {"Authorization": f"_dremio{token}"}
+    base = f"http://{DREMIO_HOST}"
 
-    # Executar query
+    # Submete a query
+    print("[DREMIO] Submetendo query ao servidor...", flush=True)
     sql_res = requests.post(
-        f"http://{host}/api/v3/sql",
+        f"{base}/api/v3/sql",
         headers=headers,
         json={"sql": sql},
         timeout=30,
     )
     sql_res.raise_for_status()
     job_id = sql_res.json()["id"]
+    print(f"[DREMIO] Job criado: {job_id}. Aguardando conclusão...", flush=True)
 
-    # Aguardar conclusão (máx 120s)
-    for _ in range(120):
-        status_res = requests.get(
-            f"http://{host}/api/v3/job/{job_id}",
-            headers=headers,
-            timeout=10,
-        )
-        job_state = status_res.json().get("jobState")
+    # Aguarda conclusão — polling a cada 3s, timeout generoso, retry em ConnectTimeout
+    t_start = time.time()
+    last_state = None
+    max_wait = 180  # segundos máximos de espera
+    poll_interval = 3  # intervalo entre checks (menos pressão no servidor)
+
+    while time.time() - t_start < max_wait:
+        try:
+            status_res = requests.get(
+                f"{base}/api/v3/job/{job_id}", headers=headers, timeout=30
+            )
+            job_state = status_res.json().get("jobState")
+        except requests.exceptions.ConnectTimeout:
+            elapsed = int(time.time() - t_start)
+            print(f"[DREMIO] Timeout ao checar status ({elapsed}s) — tentando novamente...", flush=True)
+            time.sleep(poll_interval)
+            continue
+
+        if job_state != last_state:
+            print(f"[DREMIO] Estado do job: {job_state} ({int(time.time() - t_start)}s)", flush=True)
+            last_state = job_state
 
         if job_state == "COMPLETED":
             break
@@ -86,28 +76,29 @@ def client(sql, host=None, username=None, password=None):
             error = status_res.json().get("errorMessage", "Erro desconhecido")
             raise RuntimeError(f"Job Dremio falhou ({job_state}): {error}")
 
-        time.sleep(1)
+        time.sleep(poll_interval)
     else:
-        raise TimeoutError("Timeout aguardando job Dremio (120s)")
+        raise TimeoutError(f"Timeout aguardando job Dremio ({max_wait}s)")
 
-    # Buscar resultados com paginação
-    all_rows = []
-    columns = []
+    # Busca resultados com paginação — limite de 20 páginas (10.000 linhas)
+    all_rows: list = []
+    columns: list = []
     offset = 0
     limit = 500
+    MAX_PAGES = 20
 
-    while True:
+    for page in range(MAX_PAGES):
         result_res = requests.get(
-            f"http://{host}/api/v3/job/{job_id}/results?offset={offset}&limit={limit}",
+            f"{base}/api/v3/job/{job_id}/results?offset={offset}&limit={limit}",
             headers=headers,
             timeout=30,
         )
         data = result_res.json()
 
-        if offset == 0:
+        if page == 0:
             columns = [col["name"] for col in data["schema"]]
 
-        rows = data["rows"]
+        rows = data.get("rows", [])
         if not rows:
             break
 
