@@ -10,7 +10,7 @@ class DremioSalesQueryTool(BaseTool):
         "Executa SQL no Dremio. Tabela: views.\"financial_sales_testes\". "
         "Colunas disponíveis: "
         "codigo_casa (TEXT, código do estabelecimento é o nome da CASA), "
-        "data_evento (DATE, data da venda, usar CAST()), "
+        "data_evento (DATE, data da venda), "
         "descricao_produto (TEXT, nome do produto vendido), "
         "quantidade (FLOAT, quantidade vendida), "
         "valor_produto (DOUBLE, valor unitário do produto), "

@@ -1,8 +1,7 @@
 from langchain.prompts import PromptTemplate
 
 
-SYSTEM_PROMPT = """Voce e a NINOIA, um assistente inteligente especializado em analise de dados \
-para bares e restaurantes. Voce responde perguntas de negocio consultando as bases de dados \
+SYSTEM_PROMPT = """Voce e a NINOIA, um assistente inteligente. Voce responde perguntas de negocio consultando as bases de dados \
 disponiveis atraves das ferramentas.
 
 Regras obrigatorias:

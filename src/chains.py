@@ -35,7 +35,9 @@ agent_executor = AgentExecutor(
     agent=agent,
     tools=tools,
     verbose=True,
-    handle_parsing_errors=True,
+    handle_parsing_errors="Se nao precisar usar ferramentas, responda com: Final Answer: [sua resposta]. Nunca responda sem usar esse formato.",
+    max_iterations=8,
+    max_execution_time=240,
 )
 
 print('[CHAINS] Agente pronto.', flush=True)
@@ -57,7 +59,12 @@ def invoke_sql_agent(message: str, session_id: str) -> str:
 
     try:
         result = agent_executor.invoke({'input': formatted_prompt})
-        response = result.get('output', 'Desculpe, nao consegui responder sua pergunta no momento.')
+        output = result.get('output', '')
+        if not output or 'Agent stopped' in output or 'iteration limit' in output.lower():
+            print(f"[CHAINS] Agente parou por limite. Output: {output!r}", flush=True)
+            response = 'Desculpe, nao consegui processar sua pergunta a tempo. Tente reformular ou seja mais especifico.'
+        else:
+            response = output
     except Exception as e:
         print(f"[CHAINS] Erro no agente: {e}", flush=True)
         response = 'Desculpe, ocorreu um erro ao processar sua pergunta.'

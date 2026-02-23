@@ -4,40 +4,101 @@ Assistente inteligente integrado ao WhatsApp que responde perguntas de negócio 
 
 ---
 
-## Fluxo de funcionamento
+## Fluxo Completo — Do WhatsApp à Resposta
 
 ```
-Usuário (WhatsApp)
-        │
-        ▼
-  Evolution API          ← Gateway WhatsApp
-        │  POST /webhook
-        ▼
-   FastAPI (bot)         ← Recebe evento messages.upsert
-        │
-        ▼
-  Message Buffer         ← Acumula mensagens no Redis
-  (debounce 3s)          ← Agrupa mensagens enviadas em sequência
-        │
-        ▼
-  LangChain ReAct Agent  ← GPT-4o decide qual ferramenta usar
-        │
-   ┌────┴────┐
-   ▼         ▼
-Dremio     MySQL         ← Executa SQL e retorna DataFrame
-(vendas)  (compras)
-   │         │
-   └────┬────┘
-        │ df.to_string()
-        ▼
-  GPT-4o interpreta
-  e formula resposta
-        │
-        ▼
-  Evolution API          ← Envia resposta ao WhatsApp
-        │
-        ▼
-  Usuário (WhatsApp)
+┌──────────────────────────────────────────────────────────────┐
+│  Usuário WhatsApp                                            │
+│  "Quanto vendemos em janeiro?"                               │
+└──────────────────────────┬───────────────────────────────────┘
+                           │  webhook POST
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  Evolution API  (porta 8080)                                 │
+│  Gateway que recebe e repassa mensagens do WhatsApp          │
+└──────────────────────────┬───────────────────────────────────┘
+                           │  POST /webhook
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  app.py — Webhook FastAPI  (porta 8000)                      │
+│  • Extrai chat_id e message do JSON                          │
+│  • Filtra grupos (@g.us) — ignora se for grupo               │
+│  • Chama buffer_message(chat_id, message)                    │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  message_buffer.py — Debounce Redis                          │
+│  • Armazena mensagem na lista Redis: {chat_id}_msg_buffer    │
+│  • Inicia timer de 3 segundos (asyncio.create_task)          │
+│  • Se nova mensagem chegar → cancela e recria o timer        │
+│  • Após 3s de silêncio → combina todas as mensagens          │
+│    e chama invoke_sql_agent via run_in_executor              │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  chains.py — invoke_sql_agent()                              │
+│                                                              │
+│  1. Busca histórico no Redis (últimas 6 mensagens)           │
+│  2. Monta prompt:                                            │
+│     [histórico] + [system_prompt NINOIA] + [pergunta]        │
+│  3. Passa para o AgentExecutor (handle_parsing_errors=True)  │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  LangChain ReAct Agent — GPT-4o                              │
+│                                                              │
+│  Loop de raciocínio:                                         │
+│                                                              │
+│  Thought: "Pergunta é sobre vendas"                          │
+│  Action:  consultar_vendas                                   │
+│  Input:   SELECT ... FROM views."financial_sales_testes"     │
+│                          │                                   │
+│                          ▼                                   │
+│         ┌────────────────────────────────┐                   │
+│         │  DremioSalesQueryTool          │                   │
+│         │  → connectors/dremio.client()  │                   │
+│         │  → token cacheado (sem login   │                   │
+│         │    repetido) + Dremio REST API │                   │
+│         │  → pd.DataFrame → to_string()  │                   │
+│         └────────────────────────────────┘                   │
+│                          │                                   │
+│  Observation: [dados formatados]                             │
+│                                                              │
+│  Thought: "Tenho os dados, posso responder"                  │
+│  Final Answer: "Em janeiro foram vendidos R$ 45.230,00"      │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           │  (se fosse compras)
+                           │  ┌────────────────────────────────┐
+                           │  │  MySQLPurchasesQueryTool       │
+                           │→ │  → connectors/mysql.client()   │
+                           │  │  → MySQL `505 COMPRA`          │
+                           │  │  → pd.DataFrame → to_string()  │
+                           │  └────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  chains.py — Pós processamento                               │
+│  • Salva pergunta no Redis (histórico por session_id)        │
+│  • Salva resposta no Redis (histórico por session_id)        │
+│  • Retorna resposta para message_buffer.py                   │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  integrations/evolution_api.py                               │
+│  send_whatsapp_message(chat_id, resposta)                    │
+│  POST → Evolution API → WhatsApp                             │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  Usuário WhatsApp                                            │
+│  "Em janeiro foram vendidos R$ 45.230,00..."                 │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -127,11 +188,11 @@ PYTHONUNBUFFERED=1
 
 # Evolution API (WhatsApp)
 EVOLUTION_API_URL=http://evolution-api:8080
-EVOLUTION_INSTANCE_NAME=Bot-whatsapp
+EVOLUTION_INSTANCE_NAME=instace_name
 AUTHENTICATION_API_KEY=sua_api_key
 
 # OpenAI
-OPENAI_API_KEY=sk-...
+OPENAI_API_KEY=token
 OPENAI_MODEL_NAME=gpt-4o
 OPENAI_MODEL_TEMPERATURE=0.3
 
