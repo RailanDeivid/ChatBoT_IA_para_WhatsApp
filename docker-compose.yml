@@ -12,6 +12,7 @@ services:
     depends_on:
       - postgres
       - redis
+
   postgres:
     container_name: postgres
     image: postgres:15
@@ -25,6 +26,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     expose:
       - 5432
+
   redis:
     image: redis:latest
     container_name: redis
@@ -34,7 +36,7 @@ services:
       - redis:/data
     ports:
       - 6379:6379
-  
+
   bot:
     build: .
     container_name: bot
@@ -47,19 +49,14 @@ services:
       - redis
       - db
     restart: always
-    volumes:
-      - ./vectorstore_data:/app/vectorstore
-      - ./rag_files:/app/rag_files
 
   db:
     image: mysql:8.0
     container_name: mysql_db
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
     ports:
       - "3306:3306"
     volumes:
@@ -69,6 +66,4 @@ volumes:
   evolution_instances:
   postgres_data:
   redis:
-  vectorstore_data:
-  rag_files:
   mysqldata:

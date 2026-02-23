@@ -5,11 +5,10 @@ from collections import defaultdict
 
 from src.config import REDIS_URL, BUFFER_KEY_SUFIX, DEBOUNCE_SECONDS, BUFFER_TTL
 from src.evolution_api import send_whatsapp_message
-from src.chains import get_conversational_rag_chain
+from src.chains import invoke_sql_agent
 
 
 redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
-conversational_rag_chain = get_conversational_rag_chain()
 debounce_tasks = defaultdict(asyncio.Task)
 
 def log(*args):
@@ -42,10 +41,10 @@ async def handle_debounce(chat_id: str):
         full_message = ' '.join(messages).strip()
         if full_message:
             log(f'Enviando mensagem agrupada para {chat_id}: {full_message}')
-            ai_response = conversational_rag_chain.invoke(
-                input={'input': full_message},
-                config={'configurable': {'session_id': chat_id}},
-            )['answer']
+            ai_response = invoke_sql_agent(
+                message=full_message,
+                session_id=chat_id,
+            )
 
             send_whatsapp_message(
                 number=chat_id,
