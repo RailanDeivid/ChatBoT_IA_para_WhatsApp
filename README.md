@@ -1,6 +1,6 @@
 # ChatBot IA para WhatsApp
 
-Assistente inteligente integrado ao WhatsApp que responde perguntas de negócio para bares e restaurantes consultando dados em tempo real via Dremio (vendas) e MySQL (compras).
+Assistente inteligente integrado ao WhatsApp que responde perguntas de negócio consultando dados em tempo real via Dremio (vendas) e MySQL (compras).
 
 ---
 
@@ -51,35 +51,27 @@ Assistente inteligente integrado ao WhatsApp que responde perguntas de negócio 
 │  LangChain ReAct Agent — GPT-4o                              │
 │                                                              │
 │  Loop de raciocínio:                                         │
+│  Thought → Action → Observation → Final Answer              │
 │                                                              │
-│  Thought: "Pergunta é sobre vendas"                          │
-│  Action:  consultar_vendas                                   │
-│  Input:   SELECT ... FROM views."financial_sales_testes"     │
-│                          │                                   │
-│                          ▼                                   │
-│         ┌────────────────────────────────┐                   │
-│         │  DremioSalesQueryTool          │                   │
-│         │  → connectors/dremio.client()  │                   │
-│         │  → token cacheado (sem login   │                   │
-│         │    repetido) + Dremio REST API │                   │
-│         │  → pd.DataFrame → to_string()  │                   │
-│         └────────────────────────────────┘                   │
-│                          │                                   │
-│  Observation: [dados formatados]                             │
-│                                                              │
-│  Thought: "Tenho os dados, posso responder"                  │
-│  Final Answer: "Em janeiro foram vendidos R$ 45.230,00"      │
-└──────────────────────────┬───────────────────────────────────┘
-                           │
-                           │  (se fosse compras)
-                           │  ┌────────────────────────────────┐
-                           │  │  MySQLPurchasesQueryTool       │
-                           │→ │  → connectors/mysql.client()   │
-                           │  │  → MySQL `505 COMPRA`          │
-                           │  │  → pd.DataFrame → to_string()  │
-                           │  └────────────────────────────────┘
-                           │
-                           ▼
+│  Classifica a intenção e aciona a ferramenta adequada        │
+└──────────────┬────────────────────────────────┬──────────────┘
+               │                                │
+  Pergunta de  │                                │  Pergunta de
+    Vendas     │                                │    Compras
+               ▼                                ▼
+┌──────────────────────────┐    ┌───────────────────────────────┐
+│  DremioSalesQueryTool    │    │  MySQLPurchasesQueryTool      │
+│                          │    │                               │
+│  → dremio.client()       │    │  → mysql.client()             │
+│  → token cacheado        │    │  → MySQL `505 COMPRA`         │
+│  → Dremio REST API       │    │  → pd.DataFrame               │
+│  → pd.DataFrame          │    │    → to_string()              │
+│    → to_string()         │    └──────────────┬────────────────┘
+└────────────┬─────────────┘                   │
+             │                                 │
+             └─────────────────┬───────────────┘
+                               │
+                               ▼
 ┌──────────────────────────────────────────────────────────────┐
 │  chains.py — Pós processamento                               │
 │  • Salva pergunta no Redis (histórico por session_id)        │
@@ -145,6 +137,58 @@ ChatBoT_IA_para_WhatsApp/
 |---|---|
 | Dremio | Dados de vendas — `views."financial_sales_testes"` |
 | MySQL | Dados de compras — tabela `` `505 COMPRA` `` |
+
+### Exemplo do docker-compose.yml
+
+```yaml
+services:
+
+  # ── Bot IA ─────────────────────────────────────────────────────
+  bot:
+    build: .                           # Usa o Dockerfile local para buildar a imagem
+    container_name: bot
+    ports:
+      - "8000:8000"                    # FastAPI exposta em localhost:8000
+    env_file: .env                     # Carrega todas as variáveis de ambiente
+    depends_on:
+      - redis                          # Aguarda o Redis iniciar antes de subir o bot
+    restart: unless-stopped
+
+  # ── Evolution API (Gateway WhatsApp) ───────────────────────────
+  evolution_api:
+    image: evoapicloud/evolution-api:latest
+    container_name: evolution_api
+    ports:
+      - "8080:8080"                    # Painel de administração e recebimento de webhooks
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  # ── PostgreSQL (banco de dados interno da Evolution API) ───────
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: evolution
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Persiste os dados entre restarts
+    restart: unless-stopped
+
+  # ── Redis (buffer de mensagens + histórico de conversa) ────────
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:   # Volume nomeado — garante que o banco da Evolution não seja perdido
+```
 
 ---
 
@@ -261,25 +305,56 @@ docker logs bot --tail 100
 ## Logs de startup esperados
 
 ```
+# Inicialização do servidor
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+
+# Carregamento do agente (chains.py)
 [CHAINS] Carregando modelo e ferramentas...
+[CHAINS] Modelo configurado: gpt-4o  |  temperature=0.3
+[CHAINS] Ferramentas registradas: consultar_vendas, consultar_compras
 [CHAINS] Baixando prompt do LangChain Hub...
-[CHAINS] Prompt carregado. Criando agente...
-[CHAINS] Agente pronto.
+[CHAINS] Prompt carregado com sucesso.
+[CHAINS] Criando AgentExecutor (ReAct + handle_parsing_errors=True)...
+[CHAINS] Agente pronto. ✓
+
+# Servidor disponível para receber mensagens
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 ```
 
 ## Logs ao receber mensagem
 
 ```
-Recebido no webhook: {...}
-[BUFFER] Mensagem adicionada ao buffer de 55119...@s.whatsapp.net: oi
-[BUFFER] Task de debounce criada para 55119...@s.whatsapp.net
-[BUFFER] Iniciando debounce para 55119...@s.whatsapp.net
-[BUFFER] Enviando mensagem agrupada para 55119...@s.whatsapp.net: oi
+# 1. Webhook recebe a mensagem do WhatsApp
+INFO:     POST /webhook HTTP/1.1  200 OK
+[WEBHOOK] Mensagem recebida de 55119...@s.whatsapp.net: "Quanto vendemos em janeiro?"
+
+# 2. Buffer de debounce — aguarda 3s por mensagens adicionais
+[BUFFER] Mensagem adicionada ao buffer de 55119...@s.whatsapp.net
+[BUFFER] Timer de debounce iniciado: 3s
+[BUFFER] Nenhuma nova mensagem recebida. Disparando processamento...
+[BUFFER] Mensagem combinada enviada ao agente: "Quanto vendemos em janeiro?"
+
+# 3. Agente ReAct em execução (chains.py)
 > Entering new AgentExecutor chain...
-Final Answer: Olá! Sou o NINOIA...
-[BUFFER] Resposta do agente para 55119...@s.whatsapp.net: Olá! Sou o NINOIA...
+
+Thought: O usuário quer saber o total de vendas de janeiro. Preciso consultar o Dremio.
+Action: consultar_vendas
+Action Input: SELECT SUM(valor_liquido_final) AS total FROM views."financial_sales_testes" WHERE MONTH(data_evento) = 1
+
+Observation:
+      total
+   45230.00
+
+Thought: Tenho o valor total. Posso formatar e responder ao usuário.
+Final Answer: Em janeiro foram vendidos R$ 45.230,00.
+
+> Finished chain.
+
+# 4. Resposta enviada de volta ao WhatsApp
+[BUFFER] Resposta do agente para 55119...@s.whatsapp.net: "Em janeiro foram vendidos R$ 45.230,00."
+[EVOLUTION] Mensagem enviada com sucesso → 55119...@s.whatsapp.net
 ```
 
 ---
