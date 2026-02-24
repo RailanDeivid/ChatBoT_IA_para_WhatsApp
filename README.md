@@ -374,7 +374,7 @@ Final Answer: Em janeiro foram vendidos R$ 45.230,00.
 
 ## Personalidade e regras do agente
 
-O comportamento do agente está definido em [src/prompts.py](src/prompts.py). Para alterar a personalidade, regras ou instruções do NINOIA, edite o `SYSTEM_PROMPT` diretamente — sem precisar mexer no `.env`.
+O comportamento do agente está definido em [src/prompts.py](src/prompts.py). Para alterar a personalidade, regras ou instruções do NINOIA, edite o `SYSTEM_PROMPT`.
 
 Regras configuradas:
 - Nunca revela detalhes técnicos (tabelas, bancos, ferramentas) ao usuário
