@@ -63,7 +63,7 @@ Assistente inteligente integrado ao WhatsApp que responde perguntas de negócio 
 │  DremioSalesQueryTool    │    │  MySQLPurchasesQueryTool      │
 │                          │    │                               │
 │  → dremio.client()       │    │  → mysql.client()             │
-│  → token cacheado        │    │  → MySQL `505 COMPRA`         │
+│  → token cacheado        │    │  → MySQL `tabela_compras`     │
 │  → Dremio REST API       │    │  → pd.DataFrame               │
 │  → pd.DataFrame          │    │    → to_string()              │
 │    → to_string()         │    └──────────────┬────────────────┘
@@ -135,13 +135,54 @@ ChatBoT_IA_para_WhatsApp/
 
 | Banco | Função |
 |---|---|
-| Dremio | Dados de vendas — `views."financial_sales_testes"` |
-| MySQL | Dados de compras — tabela `` `505 COMPRA` `` |
+| Dremio | Dados de vendas — `views."tabela_vendas"` |
+| MySQL | Dados de compras — tabela `` `tabela_compras` `` |
 
 ### Exemplo do docker-compose.yml
 
 ```yaml
 services:
+
+  # ── Evolution API (Gateway WhatsApp) ───────────────────────────
+  evolution-api:
+    container_name: evolution_api
+    image: evoapicloud/evolution-api:latest
+    restart: always
+    ports:
+      - "8080:8080"                    # Painel de administração e recebimento de webhooks
+    env_file:
+      - .env
+    volumes:
+      - evolution_instances:/evolution/instances   # Persiste instâncias do WhatsApp
+    depends_on:
+      - postgres
+      - redis
+
+  # ── PostgreSQL (banco de dados interno da Evolution API) ───────
+  postgres:
+    container_name: postgres
+    image: postgres:15
+    command: ["postgres", "-c", "max_connections=1000"]   # Aumenta limite de conexões
+    restart: always
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data   # Persiste os dados entre restarts
+    expose:
+      - 5432
+
+  # ── Redis (buffer de mensagens + histórico de conversa) ────────
+  redis:
+    image: redis:latest
+    container_name: redis
+    command: >
+      redis-server --port 6379 --appendonly yes   # Habilita persistência AOF
+    volumes:
+      - redis:/data
+    ports:
+      - 6379:6379
 
   # ── Bot IA ─────────────────────────────────────────────────────
   bot:
@@ -149,45 +190,17 @@ services:
     container_name: bot
     ports:
       - "8000:8000"                    # FastAPI exposta em localhost:8000
-    env_file: .env                     # Carrega todas as variáveis de ambiente
+    env_file:
+      - .env
     depends_on:
-      - redis                          # Aguarda o Redis iniciar antes de subir o bot
-    restart: unless-stopped
-
-  # ── Evolution API (Gateway WhatsApp) ───────────────────────────
-  evolution_api:
-    image: evoapicloud/evolution-api:latest
-    container_name: evolution_api
-    ports:
-      - "8080:8080"                    # Painel de administração e recebimento de webhooks
-    env_file: .env
-    depends_on:
-      - postgres
+      - evolution-api
       - redis
-    restart: unless-stopped
-
-  # ── PostgreSQL (banco de dados interno da Evolution API) ───────
-  postgres:
-    image: postgres:15
-    container_name: postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: evolution
-    volumes:
-      - postgres_data:/var/lib/postgresql/data  # Persiste os dados entre restarts
-    restart: unless-stopped
-
-  # ── Redis (buffer de mensagens + histórico de conversa) ────────
-  redis:
-    image: redis:latest
-    container_name: redis
-    ports:
-      - "6379:6379"
-    restart: unless-stopped
+    restart: always
 
 volumes:
-  postgres_data:   # Volume nomeado — garante que o banco da Evolution não seja perdido
+  evolution_instances:   # Instâncias e sessões do WhatsApp
+  postgres_data:         # Banco de dados da Evolution API
+  redis:                 # Dados persistidos do Redis (AOF)
 ```
 
 ---
@@ -341,7 +354,7 @@ INFO:     POST /webhook HTTP/1.1  200 OK
 
 Thought: O usuário quer saber o total de vendas de janeiro. Preciso consultar o Dremio.
 Action: consultar_vendas
-Action Input: SELECT SUM(valor_liquido_final) AS total FROM views."financial_sales_testes" WHERE MONTH(data_evento) = 1
+Action Input: SELECT SUM(valor_liquido_final) AS total FROM views."tabela_vendas" WHERE MONTH(data_evento) = 1
 
 Observation:
       total
