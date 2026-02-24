@@ -40,7 +40,7 @@ Assistente inteligente integrado ao WhatsApp que responde perguntas de negócio 
 ┌──────────────────────────────────────────────────────────────┐
 │  chains.py — invoke_sql_agent()                              │
 │                                                              │
-│  1. Busca histórico no Redis (últimas 6 mensagens)           │
+│  1. Busca histórico no Redis (últimas 10 mensagens)          │
 │  2. Monta prompt:                                            │
 │     [histórico] + [system_prompt NINOIA] + [pergunta]        │
 │  3. Passa para o AgentExecutor (handle_parsing_errors=True)  │
@@ -51,7 +51,7 @@ Assistente inteligente integrado ao WhatsApp que responde perguntas de negócio 
 │  LangChain ReAct Agent — GPT-4o                              │
 │                                                              │
 │  Loop de raciocínio:                                         │
-│  Thought → Action → Observation → Final Answer              │
+│  Thought → Action → Observation → Final Answer               │
 │                                                              │
 │  Classifica a intenção e aciona a ferramenta adequada        │
 └──────────────┬────────────────────────────────┬──────────────┘
@@ -72,12 +72,12 @@ Assistente inteligente integrado ao WhatsApp que responde perguntas de negócio 
              └─────────────────┬───────────────┘
                                │
                                ▼
-┌──────────────────────────────────────────────────────────────┐
-│  chains.py — Pós processamento                               │
-│  • Salva pergunta no Redis (histórico por session_id)        │
-│  • Salva resposta no Redis (histórico por session_id)        │
-│  • Retorna resposta para message_buffer.py                   │
-└──────────────────────────┬───────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────┐
+│  chains.py — Pós processamento                                                │
+│  • Salva pergunta no Redis (histórico por session_id/Contato Whatssap)        │
+│  • Salva resposta no Redis (histórico por session_id/Contato Whatssap)        │
+│  • Retorna resposta para message_buffer.py                                    │
+└──────────────────────────┬────────────────────────────────────────────────────┘
                            │
                            ▼
 ┌──────────────────────────────────────────────────────────────┐
