@@ -51,7 +51,7 @@ def invoke_sql_agent(message: str, session_id: str, sender_name: str = "") -> st
     messages = history.messages
     if messages:
         history_text = "Contexto do historico recente (use apenas para continuidade, NAO reutilize respostas anteriores):\n"
-        for msg in messages[-10:]:
+        for msg in messages[-6:]:
             role = "Usuario" if msg.type == "human" else "Assistente"
             history_text += f"{role}: {msg.content}\n"
         history_text += "\n"

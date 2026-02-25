@@ -3,6 +3,16 @@ import asyncio
 from langchain.tools import BaseTool
 
 from src.connectors.dremio import client
+from src.tools.fantasia_abreviacao import ABREVIACAO_TO_FANTASIA
+
+# Hint para o agente usar o código abreviado exato no campo codigo_casa
+_CODIGO_CASA_HINT = (
+    "IMPORTANTE: o campo `codigo_casa` armazena os códigos abreviados das casas DIRETAMENTE. "
+    "Use SEMPRE o código abreviado no SQL, NUNCA expanda para o nome completo. "
+    "Exemplos de códigos válidos: "
+    + ", ".join(ABREVIACAO_TO_FANTASIA.keys())
+    + ". "
+)
 
 
 def _strip_markdown(query: str) -> str:
@@ -27,6 +37,11 @@ class DremioSalesQueryTool(BaseTool):
         "nome_funcionario (TEXT, nome do funcionário), "
         "valor_liquido_final (DOUBLE, valor líquido final após descontos é o valor a ser considerado), "
         "distribuicao_pessoas (FLOAT, distribuição por pessoas, somar a coluna para ter o Fluxo). "
+        + _CODIGO_CASA_HINT
+        + "SINTAXE DE DATAS no Dremio: use CURRENT_DATE - INTERVAL '1' DAY (ontem), "
+        "CURRENT_DATE - INTERVAL '7' DAY (últimos 7 dias), "
+        "DATE_TRUNC('month', CURRENT_DATE) (início do mês). "
+        "NUNCA use CURRENT_DATE - INTERVAL '1 day' nem CURRENT_DATE - 1. "
         "Input: query SQL válida para Dremio."
     )
 
