@@ -1,4 +1,4 @@
-# ChatBot IA para WhatsApp
+# whatsapp-agent
 
 Assistente inteligente integrado ao WhatsApp que responde perguntas de negócio consultando dados em tempo real via Dremio (vendas) e MySQL (compras).
 
@@ -98,7 +98,7 @@ Assistente inteligente integrado ao WhatsApp que responde perguntas de negócio 
 ## Estrutura do projeto
 
 ```
-ChatBoT_IA_para_WhatsApp/
+whatsapp-agent/
 ├── src/
 │   ├── app.py                      # FastAPI — endpoint /webhook
 │   ├── chains.py                   # Agente LangChain ReAct + invoke_sql_agent

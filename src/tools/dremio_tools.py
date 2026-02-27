@@ -38,10 +38,13 @@ class DremioSalesQueryTool(BaseTool):
         "valor_liquido_final (DOUBLE, valor líquido final após descontos é o valor a ser considerado), "
         "distribuicao_pessoas (FLOAT, distribuição por pessoas, somar a coluna para ter o Fluxo). "
         + _CODIGO_CASA_HINT
-        + "SINTAXE DE DATAS no Dremio: use CURRENT_DATE - INTERVAL '1' DAY (ontem), "
+        + "SINTAXE DE DATAS no Dremio: use DATE_SUB(CURRENT_DATE, 1) (ontem), "
         "CURRENT_DATE - INTERVAL '7' DAY (últimos 7 dias), "
         "DATE_TRUNC('month', CURRENT_DATE) (início do mês). "
         "NUNCA use CURRENT_DATE - INTERVAL '1 day' nem CURRENT_DATE - 1. "
+        "Para data especifica, use CAST(data_evento AS DATE). "
+        "OBRIGATÓRIO: SEMPRE gere SQL com sintaxe 100% válida para Dremio. "
+        "NÃO use sintaxe de PostgreSQL, MySQL ou outros bancos. "
         "Input: query SQL válida para Dremio."
     )
 
