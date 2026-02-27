@@ -1,6 +1,8 @@
 # whatsapp-agent
 
-Assistente inteligente integrado ao WhatsApp que responde perguntas de negócio consultando dados em tempo real via Dremio (vendas) e MySQL (compras).
+Assistente inteligente integrado ao WhatsApp com um agente ReAct (GPT-4o) que, dependendo da intenção da pergunta, aciona a ferramenta especializada adequada: consulta dados de **vendas em tempo real via Dremio** ou dados de **compras via MySQL.** dependendo do tipo de pergunta.
+
+<img src="image-1.png" width="800" alt="Diagrama do fluxo">
 
 ---
 
