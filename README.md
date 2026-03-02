@@ -25,6 +25,8 @@ whatsapp-agent/
 │   ├── memory.py                   # Histórico de conversa via Redis
 │   ├── message_buffer.py           # Buffer de mensagens com debounce
 │   ├── prompts.py                  # Prompt do agente NINOIA
+|   ├── docs/
+|   |   ├── architecture.svg        # Estrutura do Fluxo Completo — Do WhatsApp à Resposta
 │   ├── connectors/
 │   │   ├── dremio.py               # Conector REST API Dremio → DataFrame
 │   │   └── mysql.py                # Conector MySQL → DataFrame
