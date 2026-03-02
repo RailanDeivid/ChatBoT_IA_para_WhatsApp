@@ -32,7 +32,8 @@ class DremioSalesQueryTool(BaseTool):
         "valor_produto (DOUBLE, valor unitário do produto), "
         "nome_funcionario (TEXT, nome do funcionário), "
         "valor_liquido_final (DOUBLE, valor líquido final após descontos é o valor a ser considerado), "
-        "distribuicao_pessoas (FLOAT, distribuição por pessoas, somar a coluna para ter o Fluxo). "
+        "distribuicao_pessoas (FLOAT, distribuição por pessoas, somar a coluna para ter o Fluxo), "
+        "ticket_medio (não é coluna — calcular como SUM(valor_liquido_final) / SUM(quantidade)). "
         + _CODIGO_CASA_HINT
         + "SINTAXE DE DATAS no Dremio: use DATE_SUB(CURRENT_DATE, 1) (ontem), "
         "CURRENT_DATE - INTERVAL '7' DAY (últimos 7 dias), "

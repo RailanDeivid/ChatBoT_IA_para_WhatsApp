@@ -2,8 +2,15 @@
 
 Assistente inteligente integrado ao WhatsApp com um agente ReAct (GPT-4o) que, dependendo da intenção da pergunta, aciona a ferramenta especializada adequada: consulta dados de **vendas em tempo real via Dremio** ou dados de **compras via MySQL.**
 
+## Interação por Texto:
 <img src="image-1.png" width="800" alt="Diagrama do fluxo">
 
+![alt text](image-2.png)
+
+## Interação por Audio:
+![alt text](image.png)
+
+---
 
 ## Fluxo Completo — Do WhatsApp à Resposta
 
@@ -37,7 +44,8 @@ whatsapp-agent/
 │   │   ├── utils.py                # strip_markdown — remove blocos ```sql``` do output do agente
 │   │   └── fantasia_abreviacao.py  # Mapeamento abreviação → nome fantasia do estabelecimento
 │   └── integrations/
-│       └── evolution_api.py        # Envio de mensagem via Evolution API
+│       ├── evolution_api.py        # Envio de mensagem + download de mídia via Evolution API
+│       └── transcribe.py           # Transcrição de áudio via OpenAI Whisper (whisper-1)
 ├── .dockerignore
 ├── Dockerfile
 ├── docker-compose.yml
@@ -146,6 +154,30 @@ volumes:
   postgres_data:         # Banco de dados da Evolution API
   redis:                 # Dados persistidos do Redis (AOF)
 ```
+
+---
+
+## Suporte a áudio (Whisper)
+
+O bot transcreve automaticamente mensagens de áudio antes de enviá-las ao agente.
+
+**Fluxo:**
+```
+Áudio WhatsApp → Evolution API → app.py detecta audioMessage
+   → get_media_base64() baixa o áudio da Evolution API
+   → transcribe_audio() envia para OpenAI Whisper (whisper-1)
+   → texto transcrito → buffer_message() → agente (fluxo normal)
+```
+
+| Arquivo | Responsabilidade |
+|---|---|
+| `app.py` | Detecta `audioMessage` e orquestra o fluxo |
+| `integrations/evolution_api.py` | `get_media_base64()` — baixa o áudio como base64 |
+| `integrations/transcribe.py` | `transcribe_audio()` — chama Whisper e retorna texto |
+
+> Mensagens de texto e áudio seguem o mesmo fluxo após a transcrição. O agente não distingue a origem.
+
+**Custo:** ~$0.006/minuto de áudio (OpenAI Whisper). Sem nova dependência — usa o `openai` já instalado.
 
 ---
 
@@ -344,6 +376,8 @@ Regras configuradas:
 
 ## Modelos OpenAI compatíveis
 
+### Agente (chat / ReAct)
+
 Use modelos da família **chat** (não reasoning):
 
 | Modelo | Indicado para |
@@ -353,3 +387,11 @@ Use modelos da família **chat** (não reasoning):
 | `gpt-4o-mini` | Testes — mais rápido/barato, menor confiabilidade no ReAct |
 
 > **Evite modelos da série `o`** (`o1`, `o3`, `o4-mini`) — não suportam o parâmetro `temperature` e não seguem o formato ReAct do LangChain.
+
+### Transcrição de áudio (Whisper)
+
+| Modelo | Uso |
+|---|---|
+| `whisper-1` | Único modelo disponível — usado em `integrations/transcribe.py` |
+
+> O modelo é fixo (`whisper-1`) e não é configurável via `.env`. Custo aproximado: **$0.006/minuto** de áudio.

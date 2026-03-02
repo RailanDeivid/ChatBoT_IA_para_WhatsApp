@@ -3,6 +3,8 @@ import logging
 from fastapi import FastAPI, Request
 
 from src.message_buffer import buffer_message
+from src.integrations.evolution_api import get_media_base64
+from src.integrations.transcribe import transcribe_audio
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,8 +47,19 @@ async def webhook(request: Request):
         or msg_content.get("extendedTextMessage", {}).get("text")
     )
 
-    # Ignora grupos e mensagens sem texto (mídia, sticker, reação, etc.)
-    if not chat_id or not message or "@g.us" in chat_id:
+    # Ignora grupos
+    if not chat_id or "@g.us" in chat_id:
+        return {"status": "ok"}
+
+    # Se não tem texto mas tem áudio, transcreve com Whisper
+    if not message and msg_content.get("audioMessage"):
+        audio_b64 = get_media_base64(msg_data.get("key", {}))
+        if audio_b64:
+            message = transcribe_audio(audio_b64)
+            logger.info("Áudio transcrito de %s: %.80s", sender_name or chat_id, message)
+
+    # Ignora mensagens sem texto (sticker, imagem sem legenda, reação, etc.)
+    if not message:
         return {"status": "ok"}
 
     logger.info("Mensagem de %s: %.80s", sender_name or chat_id, message)

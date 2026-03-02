@@ -35,3 +35,29 @@ def send_whatsapp_message(number: str, text: str) -> bool:
         logger.error("Falha ao enviar mensagem para %s: %s", number, e)
 
     return False
+
+
+def get_media_base64(message_key: dict) -> str:
+    """Baixa mídia (áudio, imagem, etc.) da Evolution API e retorna em base64."""
+    url = f"{EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/{EVOLUTION_INSTANCE_NAME}"
+    headers = {
+        "apikey": EVOLUTION_AUTHENTICATION_API_KEY,
+        "Content-Type": "application/json",
+    }
+    try:
+        response = requests.post(
+            url=url,
+            json={"message": {"key": message_key}},
+            headers=headers,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json().get("base64", "")
+    except requests.exceptions.Timeout:
+        logger.error("Timeout ao baixar mídia: %s", message_key.get("id"))
+    except requests.exceptions.HTTPError as e:
+        logger.error("Erro HTTP ao baixar mídia: %s — %s", e.response.status_code, e.response.text)
+    except requests.exceptions.RequestException as e:
+        logger.error("Falha ao baixar mídia: %s", e)
+
+    return ""
