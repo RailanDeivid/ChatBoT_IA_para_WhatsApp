@@ -395,3 +395,43 @@ Use modelos da família **chat** (não reasoning):
 | `whisper-1` | Único modelo disponível — usado em `integrations/transcribe.py` |
 
 > O modelo é fixo (`whisper-1`) e não é configurável via `.env`. Custo aproximado: **$0.006/minuto** de áudio.
+
+---
+
+## Custo por interação (estimativa)
+
+Cada mensagem respondida pelo agente consome tokens do GPT-4o em duas etapas:
+
+**Input** (o que entra no modelo a cada chamada):
+- Prompt completo com regras, colunas e sintaxe SQL
+- Histórico das últimas 15 mensagens da sessão
+- Pergunta do usuário
+- Resultado retornado pelo Dremio ou MySQL (DataFrame)
+
+**Output** (o que o modelo gera):
+- Raciocínio ReAct (`Thought / Action / Action Input`)
+- Resposta final (`Final Answer`)
+
+| Tipo de interação | Custo estimado |
+|---|---|
+| Mensagem de texto simples | ~$0,007 |
+| Mensagem de texto com histórico longo | ~$0,010 |
+| Áudio de 30s + agente | ~$0,010 (Whisper ~$0,003 + GPT-4o ~$0,007) |
+
+> Preços GPT-4o: $2,50/1M tokens input · $10,00/1M tokens output · Whisper: $0,006/min
+
+### Exemplo real de custo
+
+**Pergunta:** `"Quanto foi comprado de alimentos dia 26/02/2026 no [nome do estabelecimento]?"`
+
+| Componente | Tokens | Custo (USD) | Custo (BRL) |
+|---|---|---|---|
+| Input — prompt + regras + colunas SQL | ~800 tokens | ~$0,002 | ~R$0,012 |
+| Input — pergunta do usuário | ~20 tokens | ~$0,000 | ~R$0,000 |
+| Input — resultado retornado pelo MySQL (DataFrame) | ~80 tokens | ~$0,000 | ~R$0,000 |
+| Output — Thought + Action Input (SQL gerado) + Final Answer | ~180 tokens | ~$0,002 | ~R$0,012 |
+| **Total** | **~1.080 tokens** | **~$0,004** | **~R$0,023** |
+
+> Com histórico de conversa ativo (mensagens anteriores no Redis), o input cresce e o custo pode chegar a ~$0,007 (~R$0,041) por interação.
+
+> Os valores de tokens acima foram estimados colando cada componente (prompt, pergunta, resultado do banco, resposta) no [OpenAI Tokenizer](https://platform.openai.com/tokenizer) e somando os totais de input e output separadamente.
