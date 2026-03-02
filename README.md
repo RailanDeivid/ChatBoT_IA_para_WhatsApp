@@ -7,6 +7,8 @@ Assistente inteligente integrado ao WhatsApp com um agente ReAct (GPT-4o) que, d
 
 <img src="image-2.png" width="800" alt="Diagrama do fluxo">
 
+<img src="image-3.png" width="800" alt="Diagrama do fluxo"> 
+
 ## Interação por Audio:
 <img src="image.png" width="800" alt="Diagrama do fluxo">
 
