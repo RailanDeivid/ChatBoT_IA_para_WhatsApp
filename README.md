@@ -5,10 +5,10 @@ Assistente inteligente integrado ao WhatsApp com um agente ReAct (GPT-4o) que, d
 ## Interação por Texto:
 <img src="image-1.png" width="800" alt="Diagrama do fluxo">
 
-![alt text](image-2.png)
+<img src="image-2.png" width="800" alt="Diagrama do fluxo">
 
 ## Interação por Audio:
-![alt text](image.png)
+<img src="image.png" width="800" alt="Diagrama do fluxo">
 
 ---
 
