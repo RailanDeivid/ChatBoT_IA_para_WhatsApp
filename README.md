@@ -4,96 +4,13 @@ Assistente inteligente integrado ao WhatsApp com um agente ReAct (GPT-4o) que, d
 
 <img src="image-1.png" width="800" alt="Diagrama do fluxo">
 
----
 
 ## Fluxo Completo — Do WhatsApp à Resposta
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│  Usuário WhatsApp                                            │
-│  "Quanto vendemos em janeiro?"                               │
-└──────────────────────────┬───────────────────────────────────┘
-                           │  webhook POST
-                           ▼
-┌──────────────────────────────────────────────────────────────┐
-│  Evolution API  (porta 8080)                                 │
-│  Gateway que recebe e repassa mensagens do WhatsApp          │
-└──────────────────────────┬───────────────────────────────────┘
-                           │  POST /webhook
-                           ▼
-┌──────────────────────────────────────────────────────────────┐
-│  app.py — Webhook FastAPI  (porta 8000)                      │
-│  • Extrai chat_id e message do JSON                          │
-│  • Filtra grupos (@g.us) — ignora se for grupo               │
-│  • Chama buffer_message(chat_id, message)                    │
-└──────────────────────────┬───────────────────────────────────┘
-                           │
-                           ▼
-┌──────────────────────────────────────────────────────────────┐
-│  message_buffer.py — Debounce Redis                          │
-│  • Armazena mensagem na lista Redis: {chat_id}_msg_buffer    │
-│  • Inicia timer de 3 segundos (asyncio.create_task)          │
-│  • Se nova mensagem chegar → cancela e recria o timer        │
-│  • Após 3s de silêncio → combina todas as mensagens          │
-│    e chama invoke_sql_agent via run_in_executor              │
-└──────────────────────────┬───────────────────────────────────┘
-                           │
-                           ▼
-┌──────────────────────────────────────────────────────────────┐
-│  chains.py — invoke_sql_agent()                              │
-│                                                              │
-│  1. Busca histórico no Redis (últimas 10 mensagens)          │
-│  2. Monta prompt:                                            │
-│     [histórico] + [system_prompt NINOIA] + [pergunta]        │
-│  3. Passa para o AgentExecutor (handle_parsing_errors=True)  │
-└──────────────────────────┬───────────────────────────────────┘
-                           │
-                           ▼
-┌──────────────────────────────────────────────────────────────┐
-│  LangChain ReAct Agent — GPT-4o                              │
-│                                                              │
-│  Loop de raciocínio:                                         │
-│  Thought → Action → Observation → Final Answer               │
-│                                                              │
-│  Classifica a intenção e aciona a ferramenta adequada        │
-└──────────────┬────────────────────────────────┬──────────────┘
-               │                                │
-  Pergunta de  │                                │  Pergunta de
-    Vendas     │                                │    Compras
-               ▼                                ▼
-┌──────────────────────────┐    ┌───────────────────────────────┐
-│  DremioSalesQueryTool    │    │  MySQLPurchasesQueryTool      │
-│                          │    │                               │
-│  → dremio.client()       │    │  → mysql.client()             │
-│  → token cacheado        │    │  → MySQL `tabela_compras`     │
-│  → Dremio REST API       │    │  → pd.DataFrame               │
-│  → pd.DataFrame          │    │    → to_string()              │
-│    → to_string()         │    └──────────────┬────────────────┘
-└────────────┬─────────────┘                   │
-             │                                 │
-             └─────────────────┬───────────────┘
-                               │
-                               ▼
-┌───────────────────────────────────────────────────────────────────────────────┐
-│  chains.py — Pós processamento                                                │
-│  • Salva pergunta no Redis (histórico por session_id/Contato Whatssap)        │
-│  • Salva resposta no Redis (histórico por session_id/Contato Whatssap)        │
-│  • Retorna resposta para message_buffer.py                                    │
-└──────────────────────────┬────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌──────────────────────────────────────────────────────────────┐
-│  integrations/evolution_api.py                               │
-│  send_whatsapp_message(chat_id, resposta)                    │
-│  POST → Evolution API → WhatsApp                             │
-└──────────────────────────┬───────────────────────────────────┘
-                           │
-                           ▼
-┌──────────────────────────────────────────────────────────────┐
-│  Usuário WhatsApp                                            │
-│  "Em janeiro foram vendidos R$ 45.230,00..."                 │
-└──────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="src/docs/architecture.svg" width="100%" />
+</p>
+
 
 ---
 

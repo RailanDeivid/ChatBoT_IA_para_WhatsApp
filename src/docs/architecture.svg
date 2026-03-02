@@ -1,0 +1,151 @@
+<svg width="1400" height="2150" viewBox="0 0 1400 2150"
+xmlns="http://www.w3.org/2000/svg">
+
+<style>
+    .bg { fill: #0B0F19; }
+
+    .box {
+        fill: #111827;
+        stroke: #00FF88;
+        stroke-width: 2;
+        rx: 14;
+        filter: drop-shadow(0 0 8px #00FF88);
+    }
+
+    .agent {
+        stroke: #A855F7;
+        filter: drop-shadow(0 0 18px #A855F7);
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0% { filter: drop-shadow(0 0 10px #A855F7); }
+        50% { filter: drop-shadow(0 0 25px #A855F7); }
+        100% { filter: drop-shadow(0 0 10px #A855F7); }
+    }
+
+    .text-title {
+        fill: #00FF88;
+        font-family: monospace;
+        font-size: 18px;
+        font-weight: bold;
+        text-anchor: middle;
+    }
+
+    .text-body {
+        fill: #00FF88;
+        font-family: monospace;
+        font-size: 14px;
+        text-anchor: middle;
+    }
+
+    .line {
+        stroke: #00FF88;
+        stroke-width: 2;
+        fill: none;
+        stroke-dasharray: 8;
+        animation: dash 2s linear infinite;
+    }
+
+    .line-purple {
+        stroke: #A855F7;
+        stroke-width: 2;
+        fill: none;
+        stroke-dasharray: 8;
+        animation: dash 2s linear infinite;
+    }
+
+    @keyframes dash {
+        to { stroke-dashoffset: -20; }
+    }
+</style>
+
+<rect class="bg" width="100%" height="100%"/>
+
+<!-- USUÁRIO INICIAL -->
+<rect class="box" x="300" y="40" width="800" height="90"/>
+<text class="text-title" x="700" y="75">📱 Usuário WhatsApp</text>
+<text class="text-body" x="700" y="105">"Quanto vendemos em janeiro?"</text>
+
+<line class="line" x1="700" y1="130" x2="700" y2="180"/>
+
+<!-- EVOLUTION API -->
+<rect class="box" x="300" y="180" width="800" height="120"/>
+<text class="text-title" x="700" y="215">⚡ Evolution API (porta 8080)</text>
+<text class="text-body" x="700" y="245">Gateway que recebe, valida e encaminha mensagens</text>
+
+<line class="line" x1="700" y1="300" x2="700" y2="350"/>
+
+<!-- FASTAPI -->
+<rect class="box" x="300" y="350" width="800" height="160"/>
+<text class="text-title" x="700" y="385">🚀 app.py — Webhook FastAPI (porta 8000)</text>
+<text class="text-body" x="700" y="415">Extrai chat_id e mensagem</text>
+<text class="text-body" x="700" y="440">Filtra grupos (@g.us)</text>
+<text class="text-body" x="700" y="465">Envia para buffer_message(chat_id, message)</text>
+
+<line class="line" x1="700" y1="510" x2="700" y2="560"/>
+
+<!-- REDIS BUFFER -->
+<rect class="box" x="300" y="560" width="800" height="220"/>
+<text class="text-title" x="700" y="595">🧠 message_buffer.py — Debounce com Redis</text>
+<text class="text-body" x="700" y="625">Armazena em {chat_id}_msg_buffer</text>
+<text class="text-body" x="700" y="650">Inicia timer de 3 segundos</text>
+<text class="text-body" x="700" y="675">Cancela e recria timer se nova mensagem chegar</text>
+<text class="text-body" x="700" y="700">Após timeout → invoke_sql_agent()</text>
+
+<line class="line" x1="700" y1="780" x2="700" y2="830"/>
+
+<!-- CHAINS -->
+<rect class="box" x="300" y="830" width="800" height="200"/>
+<text class="text-title" x="700" y="865">🔗 chains.py — invoke_sql_agent()</text>
+<text class="text-body" x="700" y="895">Busca histórico no Redis</text>
+<text class="text-body" x="700" y="920">Monta prompt contextual completo</text>
+<text class="text-body" x="700" y="945">Executa AgentExecutor</text>
+
+<line class="line-purple" x1="700" y1="1030" x2="700" y2="1080"/>
+
+<!-- AGENT -->
+<rect class="box agent" x="250" y="1080" width="900" height="220"/>
+<text class="text-title" x="700" y="1120">🤖 LangChain ReAct Agent — GPT-4o</text>
+<text class="text-body" x="700" y="1150">Fluxo: Thought → Action → Observation → Final Answer</text>
+<text class="text-body" x="700" y="1180">Classifica intenção e seleciona ferramenta apropriada</text>
+
+<!-- TOOLS -->
+<rect class="box" x="80" y="1350" width="550" height="180"/>
+<text class="text-title" x="355" y="1385">📊 DremioSalesQueryTool</text>
+<text class="text-body" x="355" y="1415">Consulta via dremio.client()</text>
+<text class="text-body" x="355" y="1440">Executa REST API → retorna DataFrame</text>
+
+<rect class="box" x="770" y="1350" width="550" height="180"/>
+<text class="text-title" x="1045" y="1385">🛒 MySQLPurchasesQueryTool</text>
+<text class="text-body" x="1045" y="1415">Consulta via mysql.client()</text>
+<text class="text-body" x="1045" y="1440">Busca tabela_compras → retorna DataFrame</text>
+
+<line class="line" x1="500" y1="1300" x2="355" y2="1350"/>
+<line class="line" x1="900" y1="1300" x2="1045" y2="1350"/>
+
+<line class="line" x1="355" y1="1530" x2="700" y2="1600"/>
+<line class="line" x1="1045" y1="1530" x2="700" y2="1600"/>
+
+<!-- PÓS PROCESSAMENTO -->
+<rect class="box" x="300" y="1600" width="800" height="180"/>
+<text class="text-title" x="700" y="1635">🧾 chains.py — Pós-processamento</text>
+<text class="text-body" x="700" y="1665">Salva histórico atualizado no Redis</text>
+<text class="text-body" x="700" y="1690">Retorna resposta formatada</text>
+
+<line class="line-purple" x1="700" y1="1780" x2="700" y2="1850"/>
+
+<!-- ENVIO -->
+<rect class="box" x="300" y="1850" width="800" height="140"/>
+<text class="text-title" x="700" y="1885">📤 integrations/evolution_api.py</text>
+<text class="text-body" x="700" y="1915">send_whatsapp_message()</text>
+<text class="text-body" x="700" y="1940">POST → Evolution API → WhatsApp</text>
+
+<line class="line" x1="700" y1="1990" x2="700" y2="2030"/>
+
+<!-- USUÁRIO FINAL -->
+<rect class="box" x="300" y="2030" width="800" height="90"/>
+<text class="text-title" x="700" y="2065">📱 Usuário WhatsApp</text>
+<text class="text-body" x="700" y="2095">"Em janeiro foram vendidos R$ 45.230,00"</text>
+
+</svg>
