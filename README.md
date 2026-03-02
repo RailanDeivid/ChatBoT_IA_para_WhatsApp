@@ -1,6 +1,6 @@
 # whatsapp-agent
 
-Assistente inteligente integrado ao WhatsApp com um agente ReAct (GPT-4o) que, dependendo da intenção da pergunta, aciona a ferramenta especializada adequada: consulta dados de **vendas em tempo real via Dremio** ou dados de **compras via MySQL.** dependendo do tipo de pergunta.
+Assistente inteligente integrado ao WhatsApp com um agente ReAct (GPT-4o) que, dependendo da intenção da pergunta, aciona a ferramenta especializada adequada: consulta dados de **vendas em tempo real via Dremio** ou dados de **compras via MySQL.**
 
 <img src="image-1.png" width="800" alt="Diagrama do fluxo">
 
@@ -19,22 +19,26 @@ Assistente inteligente integrado ao WhatsApp com um agente ReAct (GPT-4o) que, d
 ```
 whatsapp-agent/
 ├── src/
-│   ├── app.py                      # FastAPI — endpoint /webhook
-│   ├── chains.py                   # Agente LangChain ReAct + invoke_sql_agent
+│   ├── app.py                      # FastAPI — endpoints /webhook e /health
+│   ├── chains.py                   # Agente LangChain ReAct: prompt em PT, lazy init, pré-processamento de datas
 │   ├── config.py                   # Leitura das variáveis de ambiente (.env)
-│   ├── memory.py                   # Histórico de conversa via Redis
+│   ├── memory.py                   # Histórico de conversa via Redis (TTL 24h)
 │   ├── message_buffer.py           # Buffer de mensagens com debounce
-│   ├── prompts.py                  # Prompt do agente NINOIA
-|   ├── docs/
-|   |   ├── architecture.svg        # Estrutura do Fluxo Completo — Do WhatsApp à Resposta
+│   ├── prompts.py                  # Prompt legado (não utilizado pelo agente atual)
+│   ├── vectorstore.py              # RAG: indexação de PDFs/TXTs via Chroma + OpenAI Embeddings
+│   ├── docs/
+│   │   └── architecture.svg        # Diagrama do fluxo completo
 │   ├── connectors/
 │   │   ├── dremio.py               # Conector REST API Dremio → DataFrame
-│   │   └── mysql.py                # Conector MySQL → DataFrame
+│   │   └── mysql.py                # Conector MySQL → DataFrame (lazy pool)
 │   ├── tools/
-│   │   ├── dremio_tools.py         # Tool LangChain: consultar_vendas
-│   │   └── mysql_tools.py          # Tool LangChain: consultar_compras
+│   │   ├── dremio_tools.py         # Tool LangChain: consultar_vendas (Dremio)
+│   │   ├── mysql_tools.py          # Tool LangChain: consultar_compras (MySQL)
+│   │   ├── utils.py                # strip_markdown — remove blocos ```sql``` do output do agente
+│   │   └── fantasia_abreviacao.py  # Mapeamento abreviação → nome fantasia do estabelecimento
 │   └── integrations/
 │       └── evolution_api.py        # Envio de mensagem via Evolution API
+├── .dockerignore
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
@@ -50,7 +54,9 @@ whatsapp-agent/
 | `bot` | build local | 8000 | FastAPI + Agente IA |
 | `evolution_api` | evoapicloud/evolution-api:latest | 8080 | Gateway WhatsApp |
 | `postgres` | postgres:15 | 5432 | Banco de dados da Evolution API |
-| `redis` | redis:latest | 6379 | Buffer de mensagens + histórico de conversa |
+| `redis` | redis:7 | 6379 | Buffer de mensagens + histórico de conversa |
+
+Todos os serviços possuem **health checks** configurados. O `bot` e a `evolution-api` só sobem após Redis e Postgres estarem prontos.
 
 **Bases de dados externas** (não sobem no Docker):
 
@@ -67,56 +73,73 @@ services:
   # ── Evolution API (Gateway WhatsApp) ───────────────────────────
   evolution-api:
     container_name: evolution_api
-    image: evoapicloud/evolution-api:latest
+    image: evoapicloud/evolution-api:latest   # pin a versão quando estável
     restart: always
     ports:
-      - "8080:8080"                    # Painel de administração e recebimento de webhooks
+      - "8080:8080"
     env_file:
       - .env
     volumes:
-      - evolution_instances:/evolution/instances   # Persiste instâncias do WhatsApp
+      - evolution_instances:/evolution/instances
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   # ── PostgreSQL (banco de dados interno da Evolution API) ───────
   postgres:
     container_name: postgres
     image: postgres:15
-    command: ["postgres", "-c", "max_connections=1000"]   # Aumenta limite de conexões
+    command: ["postgres", "-c", "max_connections=1000"]
     restart: always
     ports:
       - 5432:5432
     environment:
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}   # configurável via .env
     volumes:
-      - postgres_data:/var/lib/postgresql/data   # Persiste os dados entre restarts
+      - postgres_data:/var/lib/postgresql/data
     expose:
       - 5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ── Redis (buffer de mensagens + histórico de conversa) ────────
   redis:
-    image: redis:latest
+    image: redis:7
     container_name: redis
     command: >
-      redis-server --port 6379 --appendonly yes   # Habilita persistência AOF
+      redis-server --port 6379 --appendonly yes   # persistência AOF
     volumes:
       - redis:/data
     ports:
       - 6379:6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ── Bot IA ─────────────────────────────────────────────────────
   bot:
-    build: .                           # Usa o Dockerfile local para buildar a imagem
+    build: .
     container_name: bot
     ports:
-      - "8000:8000"                    # FastAPI exposta em localhost:8000
+      - "8000:8000"
     env_file:
       - .env
     depends_on:
-      - evolution-api
-      - redis
+      redis:
+        condition: service_healthy
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   evolution_instances:   # Instâncias e sessões do WhatsApp
@@ -238,21 +261,12 @@ docker logs bot --tail 100
 
 ## Logs de startup esperados
 
+O agente usa **inicialização lazy** — o modelo e as ferramentas são carregados apenas na **primeira mensagem recebida**, não no boot. Isso elimina a dependência de rede no startup e evita falhas ao subir o container.
+
 ```
 # Inicialização do servidor
 INFO:     Started server process [1]
 INFO:     Waiting for application startup.
-
-# Carregamento do agente (chains.py)
-[CHAINS] Carregando modelo e ferramentas...
-[CHAINS] Modelo configurado: gpt-4o  |  temperature=0.3
-[CHAINS] Ferramentas registradas: consultar_vendas, consultar_compras
-[CHAINS] Baixando prompt do LangChain Hub...
-[CHAINS] Prompt carregado com sucesso.
-[CHAINS] Criando AgentExecutor (ReAct + handle_parsing_errors=True)...
-[CHAINS] Agente pronto. ✓
-
-# Servidor disponível para receber mensagens
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 ```
@@ -261,41 +275,49 @@ INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 
 ```
 # 1. Webhook recebe a mensagem do WhatsApp
+2026-03-02 10:00:00 [INFO] src.app: Mensagem de João: "Quanto vendemos em janeiro?"
 INFO:     POST /webhook HTTP/1.1  200 OK
-[WEBHOOK] Mensagem recebida de 55119...@s.whatsapp.net: "Quanto vendemos em janeiro?"
 
 # 2. Buffer de debounce — aguarda 3s por mensagens adicionais
-[BUFFER] Mensagem adicionada ao buffer de 55119...@s.whatsapp.net
-[BUFFER] Timer de debounce iniciado: 3s
-[BUFFER] Nenhuma nova mensagem recebida. Disparando processamento...
-[BUFFER] Mensagem combinada enviada ao agente: "Quanto vendemos em janeiro?"
+2026-03-02 10:00:00 [INFO] src.message_buffer: Mensagem adicionada ao buffer de 55119...@s.whatsapp.net
+2026-03-02 10:00:03 [INFO] src.message_buffer: Enviando mensagem agrupada para 55119...@s.whatsapp.net
 
-# 3. Agente ReAct em execução (chains.py)
+# 3. Inicialização do agente (apenas na primeira mensagem)
+2026-03-02 10:00:03 [INFO] src.chains: Inicializando modelo e agente...
+2026-03-02 10:00:04 [INFO] src.chains: Agente pronto.
+
+# 4. Agente ReAct em execução
 > Entering new AgentExecutor chain...
 
 Thought: O usuário quer saber o total de vendas de janeiro. Preciso consultar o Dremio.
 Action: consultar_vendas
-Action Input: SELECT SUM(valor_liquido_final) AS total FROM views."tabela_vendas" WHERE MONTH(data_evento) = 1
+Action Input: SELECT SUM(valor_liquido_final) AS total FROM views."financial_sales_testes"
+              WHERE EXTRACT(MONTH FROM data_evento) = 1
+
+2026-03-02 10:00:04 [INFO] src.tools.dremio_tools: Executando query Dremio: SELECT ...
+2026-03-02 10:00:05 [INFO] src.connectors.dremio: Obtendo token Dremio...
+2026-03-02 10:00:05 [INFO] src.connectors.dremio: Submetendo query ao Dremio...
+2026-03-02 10:00:05 [INFO] src.connectors.dremio: Job criado: abc123. Aguardando conclusão...
+2026-03-02 10:00:08 [INFO] src.connectors.dremio: Estado do job: COMPLETED (3s)
+2026-03-02 10:00:08 [INFO] src.tools.dremio_tools: Query OK — 1 linhas retornadas.
 
 Observation:
       total
    45230.00
 
-Thought: Tenho o valor total. Posso formatar e responder ao usuário.
 Final Answer: Em janeiro foram vendidos R$ 45.230,00.
 
 > Finished chain.
 
-# 4. Resposta enviada de volta ao WhatsApp
-[BUFFER] Resposta do agente para 55119...@s.whatsapp.net: "Em janeiro foram vendidos R$ 45.230,00."
-[EVOLUTION] Mensagem enviada com sucesso → 55119...@s.whatsapp.net
+# 5. Resposta enviada de volta ao WhatsApp
+2026-03-02 10:00:08 [INFO] src.message_buffer: Resposta do agente para 55119...@s.whatsapp.net: "Em janeiro..."
 ```
 
 ---
 
 ## Personalidade e regras do agente
 
-O comportamento do agente está definido em [src/prompts.py](src/prompts.py). Para alterar a personalidade, regras ou instruções do NINOIA, edite o `SYSTEM_PROMPT`.
+O comportamento do agente está definido na variável `_REACT_PROMPT_TEMPLATE` em [src/chains.py](src/chains.py). Para alterar a personalidade, regras ou instruções do NINOIA, edite esse template.
 
 Regras configuradas:
 - Nunca revela detalhes técnicos (tabelas, bancos, ferramentas) ao usuário
@@ -304,6 +326,19 @@ Regras configuradas:
 - Perguntas fora do escopo retornam: *"Não tenho acesso a essas informações"*
 - Se apresenta pelo nome **NINOIA** ao cumprimentar
 - Chama o usuário pelo nome do WhatsApp quando disponível
+- Datas sem ano (ex: `26/02`, `5/3`) são completadas automaticamente com o ano corrente antes de chegar ao modelo — tratamento determinístico via regex em `chains.py`, sem depender do LLM
+- Mantém as últimas **15 mensagens** do histórico de conversa por sessão; mensagens curtas de correção ou complemento usam esse histórico para reconstruir a pergunta completa
+- Histórico de cada sessão expira automaticamente após **24h de inatividade** no Redis
+
+#### Configuração do histórico de conversa (Redis)
+
+| Configuração | Valor | Onde |
+|---|---|---|
+| Mensagens mantidas no contexto | 15 mensagens (pares usuário + bot) | `_MAX_HISTORY = 15` em `chains.py` |
+| Tempo de expiração | 24 horas de inatividade | `_SESSION_TTL = 86400` em `memory.py` |
+| Quando o timer reinicia | A cada nova mensagem enviada | comportamento padrão do TTL do Redis |
+
+> Se o usuário ficar 24h sem mandar mensagem, o histórico é apagado automaticamente. Se continuar conversando, o timer renova e nunca expira.
 
 ---
 

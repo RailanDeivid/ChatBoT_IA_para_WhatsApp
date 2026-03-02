@@ -1,3 +1,5 @@
+import logging
+
 import requests
 
 from src.config import (
@@ -5,6 +7,8 @@ from src.config import (
     EVOLUTION_INSTANCE_NAME,
     EVOLUTION_AUTHENTICATION_API_KEY,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def send_whatsapp_message(number: str, text: str) -> bool:
@@ -20,19 +24,14 @@ def send_whatsapp_message(number: str, text: str) -> bool:
     payload = {"number": number, "text": text}
 
     try:
-        response = requests.post(
-            url=url,
-            json=payload,
-            headers=headers,
-            timeout=15,
-        )
+        response = requests.post(url=url, json=payload, headers=headers, timeout=15)
         response.raise_for_status()
         return True
     except requests.exceptions.Timeout:
-        print(f"[EVOLUTION] Timeout ao enviar mensagem para {number}", flush=True)
+        logger.error("Timeout ao enviar mensagem para %s", number)
     except requests.exceptions.HTTPError as e:
-        print(f"[EVOLUTION] Erro HTTP ao enviar para {number}: {e.response.status_code} — {e.response.text}", flush=True)
+        logger.error("Erro HTTP ao enviar para %s: %s — %s", number, e.response.status_code, e.response.text)
     except requests.exceptions.RequestException as e:
-        print(f"[EVOLUTION] Falha ao enviar mensagem para {number}: {e}", flush=True)
+        logger.error("Falha ao enviar mensagem para %s: %s", number, e)
 
     return False

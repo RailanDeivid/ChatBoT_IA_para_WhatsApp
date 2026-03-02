@@ -1,9 +1,14 @@
-import re
 import asyncio
+import logging
+import re
+
 from langchain.tools import BaseTool
 
 from src.connectors.mysql import client
 from src.tools.fantasia_abreviacao import ABREVIACAO_TO_FANTASIA
+from src.tools.utils import strip_markdown
+
+logger = logging.getLogger(__name__)
 
 # Hint compacto incluído na description para o agente LLM já gerar o SQL correto
 _ABREV_HINT = (
@@ -13,25 +18,15 @@ _ABREV_HINT = (
 )
 
 
-def _strip_markdown(query: str) -> str:
-    """Remove blocos de markdown (```sql ... ```) que o agente pode gerar."""
-    query = query.strip()
-    query = re.sub(r'^```\w*\s*', '', query)
-    query = re.sub(r'\s*```$', '', query)
-    return query.strip()
-
-
 def _replace_abbreviations_in_query(query: str) -> str:
     """Substitui abreviações por nomes fantasia dentro de literais SQL (segurança extra)."""
     def _replace(match: re.Match) -> str:
         quote = match.group(1)
         value = match.group(2).strip().upper()
-        if value in ABREVIACAO_TO_FANTASIA:
-            return quote + ABREVIACAO_TO_FANTASIA[value] + quote
-        return match.group(0)
+        return quote + ABREVIACAO_TO_FANTASIA.get(value, value) + quote
 
-    query = re.sub(r"('([^']*)')", lambda m: _replace(re.match(r"('([^']*)')", m.group(0))), query)
-    query = re.sub(r'("([^"]*)")', lambda m: _replace(re.match(r'("([^"]*)")', m.group(0))), query)
+    query = re.sub(r"(['])([^']*)\1", _replace, query)
+    query = re.sub(r'(["])([^"]*)\1', _replace, query)
     return query
 
 
@@ -59,17 +54,17 @@ class MySQLPurchasesQueryTool(BaseTool):
     )
 
     def _run(self, query: str) -> str:
-        query = _strip_markdown(query)
+        query = strip_markdown(query)
         query = _replace_abbreviations_in_query(query)
-        print(f"[MYSQL TOOL] Executando query: {query}", flush=True)
+        logger.info("Executando query MySQL: %s", query)
         try:
             df = client(query)
             if df.empty:
                 return "Nenhum resultado encontrado."
-            print(f"[MYSQL TOOL] Query OK — {len(df)} linhas retornadas.", flush=True)
+            logger.info("Query OK — %d linhas retornadas.", len(df))
             return df.to_string(index=False)
         except Exception as e:
-            print(f"[MYSQL TOOL] ERRO: {type(e).__name__}: {e}", flush=True)
+            logger.error("ERRO MySQL: %s: %s", type(e).__name__, e)
             return f"Erro ao consultar MySQL (compras): {str(e)}"
 
     async def _arun(self, query: str) -> str:

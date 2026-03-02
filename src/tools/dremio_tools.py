@@ -1,9 +1,13 @@
-import re
 import asyncio
+import logging
+
 from langchain.tools import BaseTool
 
 from src.connectors.dremio import client
 from src.tools.fantasia_abreviacao import ABREVIACAO_TO_FANTASIA
+from src.tools.utils import strip_markdown
+
+logger = logging.getLogger(__name__)
 
 # Hint para o agente usar o código abreviado exato no campo codigo_casa
 _CODIGO_CASA_HINT = (
@@ -13,14 +17,6 @@ _CODIGO_CASA_HINT = (
     + ", ".join(ABREVIACAO_TO_FANTASIA.keys())
     + ". "
 )
-
-
-def _strip_markdown(query: str) -> str:
-    """Remove blocos de markdown (```sql ... ```) que o agente pode gerar."""
-    query = query.strip()
-    query = re.sub(r'^```\w*\s*', '', query)
-    query = re.sub(r'\s*```$', '', query)
-    return query.strip()
 
 
 class DremioSalesQueryTool(BaseTool):
@@ -49,16 +45,16 @@ class DremioSalesQueryTool(BaseTool):
     )
 
     def _run(self, query: str) -> str:
-        query = _strip_markdown(query)
-        print(f"[DREMIO TOOL] Executando query: {query}", flush=True)
+        query = strip_markdown(query)
+        logger.info("Executando query Dremio: %s", query)
         try:
             df = client(query)
             if df.empty:
                 return "Nenhum resultado encontrado."
-            print(f"[DREMIO TOOL] Query OK — {len(df)} linhas retornadas.", flush=True)
+            logger.info("Query OK — %d linhas retornadas.", len(df))
             return df.to_string(index=False)
         except Exception as e:
-            print(f"[DREMIO TOOL] ERRO: {type(e).__name__}: {e}", flush=True)
+            logger.error("ERRO Dremio: %s: %s", type(e).__name__, e)
             return f"Erro ao consultar Dremio (vendas): {str(e)}"
 
     async def _arun(self, query: str) -> str:

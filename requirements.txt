@@ -33,9 +33,8 @@ marshmallow==3.26.1
 multidict==6.6.3
 mypy_extensions==1.1.0
 mysql-connector-python==9.4.0
-pymysql==1.1.1
 numpy==2.3.2
-pandas>=2.0.0
+pandas==2.2.3
 openai==1.99.6
 orjson==3.11.1
 packaging==25.0

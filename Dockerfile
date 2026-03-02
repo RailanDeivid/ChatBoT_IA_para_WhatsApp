@@ -4,13 +4,14 @@ WORKDIR /app
 
 COPY requirements.txt .
 
-RUN apt update && apt install -y --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
-
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+
+RUN adduser --disabled-password --gecos "" appuser \
+    && chown -R appuser:appuser /app
+USER appuser
 
 EXPOSE 8000
 

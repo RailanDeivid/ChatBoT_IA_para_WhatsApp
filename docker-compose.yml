@@ -1,7 +1,7 @@
 services:
   evolution-api:
     container_name: evolution_api
-    image: evoapicloud/evolution-api:latest
+    image: evoapicloud/evolution-api:latest  # pin a versão quando estável (ex: v2.x.x)
     restart: always
     ports:
       - "8080:8080"
@@ -10,8 +10,10 @@ services:
     volumes:
       - evolution_instances:/evolution/instances
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   postgres:
     container_name: postgres
@@ -21,11 +23,16 @@ services:
     ports:
       - 5432:5432
     environment:
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     expose:
       - 5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:latest
@@ -36,6 +43,11 @@ services:
       - redis:/data
     ports:
       - 6379:6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   bot:
     build: .
@@ -45,9 +57,14 @@ services:
     env_file:
       - .env
     depends_on:
-      - evolution-api
-      - redis
+      redis:
+        condition: service_healthy
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   evolution_instances:
