@@ -24,6 +24,7 @@ class DremioSalesQueryTool(BaseTool):
     description: str = (
         "Use EXCLUSIVAMENTE para perguntas sobre VENDAS, faturamento, receita ou dados financeiros. Sempre agrupar as querys para tarzer um resultado mais limpo e direto. "
         "Executa SQL no Dremio. Tabela: views.\"financial_sales_testes\". "
+        "Se for perguntado sobre ticket medio (não é coluna — calcular como SUM(valor_liquido_final) / SUM(distribuicao_pessoas))."
         "Colunas disponíveis: "
         "codigo_casa (TEXT, código do estabelecimento é o nome da CASA), "
         "data_evento (DATE, data da venda), "
@@ -33,7 +34,7 @@ class DremioSalesQueryTool(BaseTool):
         "nome_funcionario (TEXT, nome do funcionário), "
         "valor_liquido_final (DOUBLE, valor líquido final após descontos é o valor a ser considerado), "
         "distribuicao_pessoas (FLOAT, distribuição por pessoas, somar a coluna para ter o Fluxo), "
-        "ticket_medio (não é coluna — calcular como SUM(valor_liquido_final) / SUM(quantidade)). "
+        "ticket_medio (não é coluna — calcular como SUM(valor_liquido_final) / SUM(distribuicao_pessoas)). "
         + _CODIGO_CASA_HINT
         + "SINTAXE DE DATAS no Dremio: use DATE_SUB(CURRENT_DATE, 1) (ontem), "
         "CURRENT_DATE - INTERVAL '7' DAY (últimos 7 dias), "

@@ -54,7 +54,7 @@ def client(sql: str) -> pd.DataFrame:
 
     t_start = time.time()
     last_state = None
-    max_wait = 180
+    max_wait = 300
     poll_interval = 3
 
     while time.time() - t_start < max_wait:

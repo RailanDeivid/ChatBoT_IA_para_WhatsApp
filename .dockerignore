@@ -4,7 +4,6 @@
 __pycache__/
 *.pyc
 *.pyo
-.claude/
 vectorstore_data/
 *.png
 *.svg

@@ -2,16 +2,25 @@
 
 Assistente inteligente integrado ao WhatsApp com um agente ReAct (GPT-4o) que, dependendo da intenção da pergunta, aciona a ferramenta especializada adequada: consulta dados de **vendas em tempo real via Dremio** ou dados de **compras via MySQL.**
 
-## Interação por Texto:
+## Perguntas sobre Compras
+### Interação por Texto :
 <img src="image-1.png" width="800" alt="Diagrama do fluxo">
 
 <img src="image-2.png" width="800" alt="Diagrama do fluxo">
 
 <img src="image-3.png" width="800" alt="Diagrama do fluxo"> 
 
-## Interação por Audio:
+### Interação por Audio:
 <img src="image.png" width="800" alt="Diagrama do fluxo">
 
+## Perguntas sobre Vendas:
+### Interação por Texto :
+<img src="image-4.png" width="800" alt="Diagrama do fluxo">
+
+<img src="image-6.png" width="800" alt="Diagrama do fluxo">
+
+### Interação por Audio:
+<img src="image-5.png" width="800" alt="Diagrama do fluxo">
 ---
 
 ## Fluxo Completo — Do WhatsApp à Resposta
