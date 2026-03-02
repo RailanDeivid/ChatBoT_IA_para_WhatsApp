@@ -14,7 +14,7 @@ from src.tools.mysql_tools import MySQLPurchasesQueryTool
 
 logger = logging.getLogger(__name__)
 
-_MAX_HISTORY = 15
+_MAX_HISTORY = 5
 _DATE_WITHOUT_YEAR = re.compile(r'\b(\d{1,2}/\d{1,2})(?!/\d)')
 _DATE_YEAR_EXTRA_DIGITS = re.compile(r'\b(\d{1,2}/\d{1,2}/)(\d{5,})\b')
 
