@@ -42,7 +42,7 @@ whatsapp-agent/
 │   ├── config.py                   # Leitura das variáveis de ambiente (.env)
 │   ├── memory.py                   # Histórico de conversa via Redis (TTL 24h)
 │   ├── message_buffer.py           # Buffer de mensagens com debounce
-│   ├── prompts.py                  # Prompt legado (não utilizado pelo agente atual)
+│   ├── prompts.py                  # Prompt ReAct do agente NINOIA: regras, formato e cálculo de SSS
 │   ├── vectorstore.py              # RAG: indexação de PDFs/TXTs via Chroma + OpenAI Embeddings
 │   ├── docs/
 │   │   └── architecture.svg        # Diagrama do fluxo completo
@@ -360,10 +360,10 @@ Final Answer: Em janeiro foram vendidos R$ 45.230,00.
 
 ## Personalidade e regras do agente
 
-O comportamento do agente está definido na variável `_REACT_PROMPT_TEMPLATE` em [src/chains.py](src/chains.py). Para alterar a personalidade, regras ou instruções do NINOIA, edite esse template.
+O comportamento do agente está definido em [src/prompts.py](src/prompts.py) (`REACT_PROMPT_TEMPLATE`). Para alterar a personalidade, regras ou instruções do NINOIA, edite esse arquivo.
 
 Regras configuradas:
-- Nunca revela detalhes técnicos (tabelas, bancos, ferramentas) ao usuário
+- **Confidencialidade absoluta:** nunca revela tabelas, bancos, schemas, colunas, campos, estrutura técnica ou lista de estabelecimentos/casas — essas informações são estritamente confidenciais para qualquer usuário
 - Sempre consulta as ferramentas para cada pergunta — não reutiliza respostas anteriores
 - Responde exclusivamente em português
 - Perguntas fora do escopo retornam: *"Não tenho acesso a essas informações"*
@@ -372,6 +372,7 @@ Regras configuradas:
 - Datas sem ano (ex: `26/02`, `5/3`) são completadas automaticamente com o ano corrente antes de chegar ao modelo — tratamento determinístico via regex em `chains.py`, sem depender do LLM
 - Mantém as últimas **15 mensagens** do histórico de conversa por sessão; mensagens curtas de correção ou complemento usam esse histórico para reconstruir a pergunta completa
 - Histórico de cada sessão expira automaticamente após **24h de inatividade** no Redis
+- **SSS (Same Store Sales):** quando solicitado, calcula o crescimento de vendas apenas das casas ativas em ambos os períodos comparados (excluindo casas novas). Fórmula: `SSS = (Vendas Período Atual − Vendas Período Anterior) / Vendas Período Anterior`, expresso em percentual
 
 #### Configuração do histórico de conversa (Redis)
 
