@@ -372,7 +372,7 @@ Regras configuradas:
 - Datas sem ano (ex: `26/02`, `5/3`) são completadas automaticamente com o ano corrente antes de chegar ao modelo — tratamento determinístico via regex em `chains.py`, sem depender do LLM
 - Mantém as últimas **15 mensagens** do histórico de conversa por sessão; mensagens curtas de correção ou complemento usam esse histórico para reconstruir a pergunta completa
 - Histórico de cada sessão expira automaticamente após **24h de inatividade** no Redis
-- **SSS (Same Store Sales):** quando solicitado, calcula o crescimento de vendas apenas das casas ativas em ambos os períodos comparados (excluindo casas novas). Fórmula: `SSS = (Vendas Período Atual − Vendas Período Anterior) / Vendas Período Anterior`, expresso em percentual
+- **SSS (Same Store Sales):** quando solicitado, calcula o índice de vendas apenas das casas ativas em ambos os períodos comparados (excluindo casas novas). Fórmula: `SSS = Vendas Período Atual / Vendas Período Anterior` — resultado como índice (ex: 1.10 = 10% acima; 0.90 = 10% abaixo). O período de comparação é sempre a mesma semana ISO / mês / ano anterior — o agente deduz automaticamente sem perguntar ao usuário. Aceita intervalo de datas (ex: `23/02/2026 a 01/03/2026`), número de semana (ex: `semana 9 de 2026`) ou mês
 
 #### Configuração do histórico de conversa (Redis)
 
