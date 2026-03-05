@@ -231,8 +231,8 @@ Os usuários são armazenados em um banco SQLite no caminho definido por `SQLITE
 |---|---|
 | `telefone` | Número no formato `5511999999999` (sem `+`, sem espaços) |
 | `nome` | Nome do usuário |
-| `setor` | Setor da empresa |
-| `casa` | Estabelecimento/unidade |
+| `cargo` | Cargo do usuário (ex: Analista, Coordenador) |
+| `casa` | Estabelecimento/unidade (ex: Matriz, Filial) |
 | `is_admin` | `1` = admin, `0` = usuário comum |
 | `active` | `1` = ativo, `0` = bloqueado |
 | `adicionado_por` | Número de quem autorizou (ou `sistema` para seeds) |
@@ -242,11 +242,11 @@ Os usuários são armazenados em um banco SQLite no caminho definido por `SQLITE
 Defina os administradores iniciais via variável `SEED_USERS` no `.env`. Eles são inseridos automaticamente na primeira vez que o bot sobe e **nunca sobrescritos** nas reinicializações seguintes.
 
 ```env
-# Formato: TELEFONE:NOME:SETOR:CASA:admin  (separados por vírgula para múltiplos)
-SEED_USERS=5511999990000:João Silva:TI:Matriz:admin
+# Formato: TELEFONE:NOME:CARGO:CASA:admin  (separados por vírgula para múltiplos)
+SEED_USERS=5511999990000:João Silva:Analista:Matriz:admin
 
 # Múltiplos usuários seed:
-SEED_USERS=5511999990000:João Silva:TI:Matriz:admin,5511988880000:Maria Souza:RH:Filial:user
+SEED_USERS=5511999990000:João Silva:Analista:Matriz:admin,5511988880000:Maria Souza:Estagiaria:Matriz:user
 ```
 
 > Usuários seed com perfil `admin` podem gerenciar outros usuários via comandos no próprio WhatsApp.
@@ -274,7 +274,7 @@ O que escrever no WhatsApp:
 Resposta do bot:
 ```
 *Usuários padrão:*
-• Maria Souza | RH | Filial (5511988880000)
+• 5511988880000 | Maria Souza | Filial | Estagiaria
 
 *Bloqueados:*
 • Carlos Lima (5511977770000)
@@ -292,7 +292,7 @@ O que escrever no WhatsApp:
 Resposta do bot:
 ```
 *Administradores:*
-• João Silva | TI | Matriz (5511999990000)
+• 5511999990000 | João Silva | Matriz | Analista | _admin_
 ```
 
 ---
@@ -301,7 +301,7 @@ Resposta do bot:
 
 O que escrever no WhatsApp:
 ```
-/autorizar 5511977770000 Carlos Lima | Financeiro | Filial
+/autorizar 5511977770000 Carlos Lima | Analista | Matriz
 ```
 
 Resposta do bot:
@@ -315,7 +315,7 @@ Resposta do bot:
 
 O que escrever no WhatsApp:
 ```
-/autorizar 5511966660000 Ana Reis | TI | Matriz | admin
+/autorizar 5511966660000 Ana Reis | Analista | Matriz | admin
 ```
 
 Resposta do bot:
@@ -370,10 +370,10 @@ Resposta do bot:
 ```
 *Comandos disponíveis:*
 
-*/autorizar* 5511999 Nome | Setor | Casa
+*/autorizar* 5511999 Nome | Cargo | Casa
 → Autoriza um novo usuário padrão
 
-*/autorizar* 5511999 Nome | Setor | Casa | admin
+*/autorizar* 5511999 Nome | Cargo | Casa | admin
 → Autoriza um novo usuário como administrador
 
 */bloquear* 5511999

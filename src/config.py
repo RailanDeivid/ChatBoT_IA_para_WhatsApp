@@ -69,8 +69,8 @@ def _parse_seed_users(raw: str) -> list[dict]:
         users.append({
             "telefone": parts[0],
             "nome":     parts[1],
-            "setor":    parts[2],
-            "casa":     parts[3],
+            "cargo":    parts[2],
+            "casa":    parts[3],
             "is_admin": 1 if len(parts) >= 5 and parts[4].lower() == "admin" else 0,
         })
     return users

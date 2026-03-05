@@ -128,8 +128,8 @@ def _handle_admin_command(message: str, admin_phone: str) -> str | None:
     Processa comandos administrativos enviados via WhatsApp.
 
     Comandos disponíveis:
-      /autorizar 5511999999999 Nome | Setor | Casa
-      /autorizar 5511999999999 Nome | Setor | Casa | admin
+      /autorizar 5511999999999 Nome | Cargo | Casa
+      /autorizar 5511999999999 Nome | Cargo | Casa | admin
       /bloquear 5511999999999
       /remover 5511999999999
       /usuarios
@@ -163,9 +163,9 @@ def _handle_admin_command(message: str, admin_phone: str) -> str | None:
     if cmd == "/ajuda":
         return (
             "*Comandos disponíveis:*\n\n"
-            "*/autorizar* 5511999 Nome | Setor | Casa\n"
+            "*/autorizar* 5511999 Nome | Cargo | Casa\n"
             "→ Autoriza um novo usuário padrão\n\n"
-            "*/autorizar* 5511999 Nome | Setor | Casa | admin\n"
+            "*/autorizar* 5511999 Nome | Cargo | Casa | admin\n"
             "→ Autoriza um novo usuário como administrador\n\n"
             "*/bloquear* 5511999\n"
             "→ Bloqueia o acesso de um usuário\n\n"
@@ -182,28 +182,28 @@ def _handle_admin_command(message: str, admin_phone: str) -> str | None:
 
 def _cmd_autorizar(args: str, admin_phone: str) -> str:
     """
-    Formato: 5511999999999 Nome | Setor | Casa
-         ou: 5511999999999 Nome | Setor | Casa | admin
+    Formato: 5511999999999 Nome | Cargo | Casa
+         ou: 5511999999999 Nome | Cargo | Casa | admin
     """
     try:
         phone_part, rest = args.split(None, 1)
     except ValueError:
-        return "⚠️ Uso: /autorizar 5511999999999 Nome | Setor | Casa"
+        return "⚠️ Uso: /autorizar 5511999999999 Nome | Cargo | Casa"
 
     fields = [f.strip() for f in rest.split("|")]
 
     if len(fields) < 3:
-        return "⚠️ Uso: /autorizar 5511999999999 Nome | Setor | Casa"
+        return "⚠️ Uso: /autorizar 5511999999999 Nome | Cargo | Casa"
 
     nome  = fields[0]
-    setor = fields[1]
-    casa  = fields[2]
+    cargo = fields[1]
+    casa = fields[2]
     admin = len(fields) >= 4 and fields[3].lower() == "admin"
 
     return authorize(
         phone=phone_part.strip(),
         nome=nome,
-        setor=setor,
+        cargo=cargo,
         casa=casa,
         added_by=admin_phone,
         admin=admin,
@@ -223,7 +223,7 @@ def _cmd_usuarios() -> str:
 
     lines = ["*Usuários padrão:*"]
     for u in ativos:
-        lines.append(f"• {u['nome']} | {u['setor']} | {u['casa']} ({u['telefone']})")
+        lines.append(f"• {u['telefone']} | {u['nome']} | {u['cargo']} | {u['casa']}")
 
     if inativos:
         lines.append("\n*Bloqueados:*")
@@ -246,7 +246,7 @@ def _cmd_usuarios_admin() -> str:
 
     lines = ["*Administradores:*"]
     for u in ativos:
-        lines.append(f"• {u['nome']} | {u['setor']} | {u['casa']} ({u['telefone']})")
+        lines.append(f"• {u['telefone']} | {u['nome']} | {u['cargo']} | {u['casa']} | _admin_")
 
     if inativos:
         lines.append("\n*Bloqueados:*")
