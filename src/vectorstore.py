@@ -1,18 +1,18 @@
+import logging
 import os
-import shutil
 
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 
-from config import RAG_FILES_DIR, VECTOR_STORE_PATH
+from src.config import RAG_FILES_DIR, VECTOR_STORE_PATH
+
+logger = logging.getLogger(__name__)
 
 
 def load_documents():
     docs = []
-    processed_dir = os.path.join(RAG_FILES_DIR, 'processed')
-    os.makedirs(processed_dir, exist_ok=True)
 
     files = [
         os.path.join(RAG_FILES_DIR, f)
@@ -21,10 +21,13 @@ def load_documents():
     ]
 
     for file in files:
-        loader = PyPDFLoader(file) if file.endswith('.pdf') else TextLoader(file)
-        docs.extend(loader.load())
-        dest_path = os.path.join(processed_dir, os.path.basename(file))
-        shutil.move(file, dest_path)
+        try:
+            loader = PyPDFLoader(file) if file.endswith('.pdf') else TextLoader(file, encoding="utf-8")
+            docs.extend(loader.load())
+            os.remove(file)
+            logger.info("Arquivo indexado e removido: %s", os.path.basename(file))
+        except Exception as e:
+            logger.error("Erro ao processar %s: %s", os.path.basename(file), e)
 
     return docs
 
@@ -41,7 +44,12 @@ def get_vectorstore():
             embedding=OpenAIEmbeddings(),
             persist_directory=VECTOR_STORE_PATH,
         )
-    return Chroma(
-        embedding_function=OpenAIEmbeddings(),
-        persist_directory=VECTOR_STORE_PATH,
-    )
+
+    # Só abre o índice existente se o diretório já tiver dados
+    if os.path.isdir(VECTOR_STORE_PATH) and os.listdir(VECTOR_STORE_PATH):
+        return Chroma(
+            embedding_function=OpenAIEmbeddings(),
+            persist_directory=VECTOR_STORE_PATH,
+        )
+
+    return None

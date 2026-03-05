@@ -2,5 +2,11 @@
 .env
 **/.env
 /.__pycache__
-**/__pycache__/ 
+**/__pycache__/
 
+
+/rag_files/*
+!/rag_files/.gitkeep
+/vectorstore/
+
+*access.db

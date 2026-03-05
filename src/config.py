@@ -42,3 +42,37 @@ STRING_CONEXAO = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{
 DREMIO_HOST     = _require("DREMIO_HOST")
 DREMIO_USER     = _require("DREMIO_USER")
 DREMIO_PASSWORD = _require("DREMIO_PASSWORD")
+
+# RAG
+RAG_FILES_DIR    = os.getenv("RAG_FILES_DIR", "rag_files")
+VECTOR_STORE_PATH = os.getenv("VECTOR_STORE_PATH", "vectorstore")
+
+# Controle de acesso
+SQLITE_PATH = os.getenv("SQLITE_PATH", "data/access.db")
+
+# Auto-delete de mensagens do WhatsApp (0 = desativado)
+AUTO_DELETE_DAYS = int(os.getenv("AUTO_DELETE_DAYS", "0"))
+
+UNAUTHORIZED_MESSAGE = os.getenv(
+    "UNAUTHORIZED_MESSAGE",
+    "Olá! Você não está autorizado a usar este assistente. Entre em contato com um administrador.",
+)
+
+# Usuários seed — lidos do .env, nunca hardcoded no código
+# Formato: TELEFONE:NOME:SETOR:CASA:admin|user (separados por vírgula)
+def _parse_seed_users(raw: str) -> list[dict]:
+    users = []
+    for entry in raw.split(","):
+        parts = [p.strip() for p in entry.strip().split(":")]
+        if len(parts) < 4:
+            continue
+        users.append({
+            "telefone": parts[0],
+            "nome":     parts[1],
+            "setor":    parts[2],
+            "casa":     parts[3],
+            "is_admin": 1 if len(parts) >= 5 and parts[4].lower() == "admin" else 0,
+        })
+    return users
+
+SEED_USERS: list[dict] = _parse_seed_users(os.getenv("SEED_USERS", ""))

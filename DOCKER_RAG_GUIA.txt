@@ -1,0 +1,91 @@
+========================================================
+  GUIA DOCKER — BOT WHATSAPP + RAG
+========================================================
+
+--------------------------------------------------------
+  PRIMEIRA VEZ (subir tudo do zero)
+--------------------------------------------------------
+docker compose up --build -d
+
+  O que faz:
+  - Builda a imagem do bot
+  - Sobe todos os containers (bot, redis, postgres, evolution)
+  - Cria os volumes automaticamente (incluindo vectorstore)
+
+
+--------------------------------------------------------
+  ADICIONOU UM PDF NOVO
+--------------------------------------------------------
+1. Coloque o PDF na pasta:  rag_files/
+
+2. Reinicie apenas o bot:
+   docker compose restart bot
+
+  O que acontece:
+  - Na primeira pergunta sobre documentos, o bot indexa o PDF
+  - O PDF é deletado automaticamente após ser indexado
+  - Os vetores são salvos no volume vectorstore (persistem)
+
+
+--------------------------------------------------------
+  ATUALIZAR O CÓDIGO (fez alteração nos arquivos .py)
+--------------------------------------------------------
+docker compose up --build -d bot
+
+  O que faz:
+  - Reconstrói apenas a imagem do bot
+  - Reinicia o container do bot com o novo código
+  - Os outros containers (redis, postgres, evolution) continuam rodando
+
+
+--------------------------------------------------------
+  VER LOGS DO BOT (acompanhar indexação, erros, etc.)
+--------------------------------------------------------
+docker compose logs -f bot
+
+
+--------------------------------------------------------
+  ZERAR TODOS OS DOCUMENTOS INDEXADOS (resetar o RAG)
+--------------------------------------------------------
+docker compose down
+docker volume rm whatsapp-agent_vectorstore
+docker compose up -d
+
+  Atenção: substitua "whatsapp-agent" pelo nome da pasta
+  do projeto se for diferente. Para confirmar o nome:
+  docker volume ls
+
+
+--------------------------------------------------------
+  PARAR TUDO
+--------------------------------------------------------
+docker compose down
+
+
+--------------------------------------------------------
+  PARAR TUDO E APAGAR TODOS OS VOLUMES (reset completo)
+--------------------------------------------------------
+docker compose down -v
+
+  Atenção: apaga Redis (histórico de conversa),
+  Postgres (Evolution), e vectorstore (RAG).
+  Use só se quiser começar do zero absoluto.
+
+
+--------------------------------------------------------
+  RESUMO RÁPIDO
+--------------------------------------------------------
+
+Situação                          Comando
+--------------------------------  --------------------------------
+Primeira vez                      docker compose up --build -d
+Adicionou PDF                     docker compose restart bot
+Alterou código Python             docker compose up --build -d bot
+Ver logs                          docker compose logs -f bot
+Resetar índice RAG                docker compose down
+                                  docker volume rm whatsapp-agent_vectorstore
+                                  docker compose up -d
+Parar tudo                        docker compose down
+Reset completo (apaga tudo)       docker compose down -v
+
+========================================================

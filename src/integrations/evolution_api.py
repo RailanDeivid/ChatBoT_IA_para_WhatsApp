@@ -11,10 +11,10 @@ from src.config import (
 logger = logging.getLogger(__name__)
 
 
-def send_whatsapp_message(number: str, text: str) -> bool:
+def send_whatsapp_message(number: str, text: str) -> str | None:
     """
     Envia mensagem de texto via Evolution API.
-    Retorna True se enviado com sucesso, False caso contrário.
+    Retorna o message ID se enviado com sucesso, None caso contrário.
     """
     url = f"{EVOLUTION_API_URL}/message/sendText/{EVOLUTION_INSTANCE_NAME}"
     headers = {
@@ -26,13 +26,39 @@ def send_whatsapp_message(number: str, text: str) -> bool:
     try:
         response = requests.post(url=url, json=payload, headers=headers, timeout=15)
         response.raise_for_status()
-        return True
+        return response.json().get("key", {}).get("id")
     except requests.exceptions.Timeout:
         logger.error("Timeout ao enviar mensagem para %s", number)
     except requests.exceptions.HTTPError as e:
         logger.error("Erro HTTP ao enviar para %s: %s — %s", number, e.response.status_code, e.response.text)
     except requests.exceptions.RequestException as e:
         logger.error("Falha ao enviar mensagem para %s: %s", number, e)
+
+    return None
+
+
+def delete_whatsapp_message(chat_id: str, message_id: str) -> bool:
+    """
+    Apaga uma mensagem enviada pelo bot via Evolution API (apagar para todos).
+    Retorna True se deletado com sucesso.
+    """
+    url = f"{EVOLUTION_API_URL}/message/delete/{EVOLUTION_INSTANCE_NAME}"
+    headers = {
+        "apikey": EVOLUTION_AUTHENTICATION_API_KEY,
+        "Content-Type": "application/json",
+    }
+    payload = {"id": message_id, "remoteJid": chat_id, "fromMe": True}
+
+    try:
+        response = requests.delete(url=url, json=payload, headers=headers, timeout=15)
+        response.raise_for_status()
+        return True
+    except requests.exceptions.Timeout:
+        logger.error("Timeout ao apagar mensagem %s", message_id)
+    except requests.exceptions.HTTPError as e:
+        logger.error("Erro HTTP ao apagar mensagem %s: %s — %s", message_id, e.response.status_code, e.response.text)
+    except requests.exceptions.RequestException as e:
+        logger.error("Falha ao apagar mensagem %s: %s", message_id, e)
 
     return False
 

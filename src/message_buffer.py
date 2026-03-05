@@ -4,7 +4,8 @@ import redis.asyncio as redis
 
 from src.config import REDIS_URL, BUFFER_KEY_SUFIX, DEBOUNCE_SECONDS, BUFFER_TTL
 from src.integrations.evolution_api import send_whatsapp_message
-from src.chains import invoke_sql_agent
+from src.chains import route_and_invoke
+from src.memory import store_sent_message
 
 logger = logging.getLogger(__name__)
 
@@ -42,14 +43,16 @@ async def handle_debounce(chat_id: str, sender_name: str = "") -> None:
             loop = asyncio.get_running_loop()
             ai_response = await loop.run_in_executor(
                 None,
-                lambda: invoke_sql_agent(message=full_message, session_id=chat_id, sender_name=sender_name),
+                lambda: route_and_invoke(message=full_message, session_id=chat_id, sender_name=sender_name),
             )
 
             logger.info("Resposta do agente para %s: %.100s", chat_id, ai_response)
 
-            await loop.run_in_executor(
+            msg_id = await loop.run_in_executor(
                 None, lambda: send_whatsapp_message(number=chat_id, text=ai_response)
             )
+            if msg_id:
+                store_sent_message(chat_id, msg_id)
 
         await redis_client.delete(buffer_key)
 

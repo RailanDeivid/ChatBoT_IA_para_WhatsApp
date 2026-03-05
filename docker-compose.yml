@@ -1,7 +1,7 @@
 services:
   evolution-api:
     container_name: evolution_api
-    image: evoapicloud/evolution-api:latest  # pin a versão quando estável (ex: v2.x.x)
+    image: evoapicloud/evolution-api:latest 
     restart: always
     ports:
       - "8080:8080"
@@ -60,6 +60,10 @@ services:
       redis:
         condition: service_healthy
     restart: always
+    volumes:
+      - ./rag_files:/app/rag_files
+      - ./vectorstore:/app/vectorstore
+      - ./data:/app/data
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 30s
