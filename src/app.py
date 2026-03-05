@@ -7,7 +7,7 @@ from src.message_buffer import buffer_message
 from src.integrations.evolution_api import get_media_base64, send_whatsapp_message, delete_whatsapp_message
 from src.integrations.transcribe import transcribe_audio
 from src.access_control import init_db, is_authorized, is_admin, authorize, revoke, delete_user, list_users
-from src.memory import clear_session, clear_all_sessions, get_all_sent_chats, get_sent_message_ids, clear_sent_messages
+from src.memory import get_all_sent_chats, get_sent_message_ids, clear_sent_messages
 from src.config import UNAUTHORIZED_MESSAGE, AUTO_DELETE_DAYS
 
 logging.basicConfig(
@@ -132,11 +132,8 @@ def _handle_admin_command(message: str, admin_phone: str) -> str | None:
       /autorizar 5511999999999 Nome | Setor | Casa | admin
       /bloquear 5511999999999
       /remover 5511999999999
-      /limpar 5511999999999
-      /limpar tudo
-      /apagar redis
-      /apagar mensagens
       /usuarios
+      /usuarios admin
       /ajuda
     """
     parts = message.split(None, 1)  # divide em comando + resto
@@ -158,60 +155,29 @@ def _handle_admin_command(message: str, admin_phone: str) -> str | None:
             return "⚠️ Uso: /remover 5511999999999"
         return delete_user(phone, deleted_by=admin_phone)
 
-    if cmd == "/limpar":
-        target = args.strip().lower()
-        if not target:
-            return "⚠️ Uso: /limpar 5511999999999  ou  /limpar tudo"
-        if target == "tudo":
-            count = clear_all_sessions()
-            return f"🧹 Histórico de todas as conversas apagado ({count} sessões)."
-        session_id = f"{target}@s.whatsapp.net"
-        clear_session(session_id)
-        return f"🧹 Histórico de {target} apagado com sucesso."
-
-    if cmd == "/apagar":
-        return _cmd_apagar(args)
-
     if cmd == "/usuarios":
+        if args.strip().lower() == "admin":
+            return _cmd_usuarios_admin()
         return _cmd_usuarios()
 
     if cmd == "/ajuda":
         return (
-            "Comandos disponíveis:\n"
-            "/autorizar 5511999 Nome | Setor | Casa\n"
-            "/autorizar 5511999 Nome | Setor | Casa | admin\n"
-            "/bloquear 5511999\n"
-            "/remover 5511999\n"
-            "/limpar 5511999\n"
-            "/limpar tudo\n"
-            "/apagar redis\n"
-            "/apagar mensagens\n"
-            "/usuarios"
+            "*Comandos disponíveis:*\n\n"
+            "*/autorizar* 5511999 Nome | Setor | Casa\n"
+            "→ Autoriza um novo usuário padrão\n\n"
+            "*/autorizar* 5511999 Nome | Setor | Casa | admin\n"
+            "→ Autoriza um novo usuário como administrador\n\n"
+            "*/bloquear* 5511999\n"
+            "→ Bloqueia o acesso de um usuário\n\n"
+            "*/remover* 5511999\n"
+            "→ Remove o usuário do sistema permanentemente\n\n"
+            "*/usuarios*\n"
+            "→ Lista todos os usuários padrão cadastrados\n\n"
+            "*/usuarios admin*\n"
+            "→ Lista todos os administradores cadastrados"
         )
 
     return None  # comando desconhecido — segue fluxo normal do bot
-
-
-def _cmd_apagar(args: str) -> str:
-    subcmd = args.strip().lower()
-
-    if subcmd == "redis":
-        count = clear_all_sessions()
-        return f"🧹 Memória de todas as conversas apagada no Redis ({count} sessões)."
-
-    if subcmd == "mensagens":
-        chats = get_all_sent_chats()
-        if not chats:
-            return "⚠️ Nenhuma mensagem armazenada para apagar."
-        total_deleted = 0
-        for chat_id in chats:
-            ids = get_sent_message_ids(chat_id)
-            deleted = sum(1 for mid in ids if delete_whatsapp_message(chat_id, mid))
-            total_deleted += deleted
-            clear_sent_messages(chat_id)
-        return f"🗑️ {total_deleted} mensagens apagadas no WhatsApp ({len(chats)} chats)."
-
-    return "⚠️ Uso:\n/apagar redis — apaga memória de todas as conversas\n/apagar mensagens — apaga mensagens do bot no WhatsApp"
 
 
 def _cmd_autorizar(args: str, admin_phone: str) -> str:
@@ -249,13 +215,38 @@ def _cmd_usuarios() -> str:
     if not users:
         return "Nenhum usuário cadastrado."
 
-    ativos   = [u for u in users if u["active"]]
-    inativos = [u for u in users if not u["active"]]
+    ativos   = [u for u in users if u["active"] and not u["is_admin"]]
+    inativos = [u for u in users if not u["active"] and not u["is_admin"]]
 
-    lines = ["*Usuários autorizados:*"]
+    if not ativos and not inativos:
+        return "Nenhum usuário padrão cadastrado."
+
+    lines = ["*Usuários padrão:*"]
     for u in ativos:
-        tag = " _(admin)_" if u["is_admin"] else ""
-        lines.append(f"• {u['nome']} | {u['setor']} | {u['casa']} ({u['telefone']}){tag}")
+        lines.append(f"• {u['nome']} | {u['setor']} | {u['casa']} ({u['telefone']})")
+
+    if inativos:
+        lines.append("\n*Bloqueados:*")
+        for u in inativos:
+            lines.append(f"• {u['nome']} ({u['telefone']})")
+
+    return "\n".join(lines)
+
+
+def _cmd_usuarios_admin() -> str:
+    users = list_users()
+    if not users:
+        return "Nenhum usuário cadastrado."
+
+    ativos   = [u for u in users if u["active"] and u["is_admin"]]
+    inativos = [u for u in users if not u["active"] and u["is_admin"]]
+
+    if not ativos and not inativos:
+        return "Nenhum administrador cadastrado."
+
+    lines = ["*Administradores:*"]
+    for u in ativos:
+        lines.append(f"• {u['nome']} | {u['setor']} | {u['casa']} ({u['telefone']})")
 
     if inativos:
         lines.append("\n*Bloqueados:*")

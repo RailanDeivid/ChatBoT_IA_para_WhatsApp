@@ -264,7 +264,7 @@ UNAUTHORIZED_MESSAGE=Olá! Você não está autorizado a usar este assistente. E
 
 Apenas usuários com `is_admin = 1` podem usar os comandos abaixo. Usuários comuns que tentarem recebem `"Comando não reconhecido."`.
 
-#### Listar usuários
+#### Listar usuários padrão
 
 O que escrever no WhatsApp:
 ```
@@ -273,12 +273,26 @@ O que escrever no WhatsApp:
 
 Resposta do bot:
 ```
-*Usuários autorizados:*
-• João Silva | TI | Matriz (5511999990000) (admin)
+*Usuários padrão:*
 • Maria Souza | RH | Filial (5511988880000)
 
 *Bloqueados:*
 • Carlos Lima (5511977770000)
+```
+
+---
+
+#### Listar administradores
+
+O que escrever no WhatsApp:
+```
+/usuarios admin
+```
+
+Resposta do bot:
+```
+*Administradores:*
+• João Silva | TI | Matriz (5511999990000)
 ```
 
 ---
@@ -345,70 +359,6 @@ Resposta do bot:
 
 ---
 
-#### Limpar histórico de um usuário
-
-Apaga o histórico de conversa de um número específico no Redis. O bot "esquece" tudo que foi dito.
-
-O que escrever no WhatsApp:
-```
-/limpar 5511977770000
-```
-
-Resposta do bot:
-```
-🧹 Histórico de 5511977770000 apagado com sucesso.
-```
-
----
-
-#### Limpar histórico de todos os usuários
-
-O que escrever no WhatsApp:
-```
-/limpar tudo
-```
-
-Resposta do bot:
-```
-🧹 Histórico de todas as conversas apagado (5 sessões).
-```
-
----
-
-#### Apagar memória Redis de todos os chats
-
-Apaga o histórico de contexto de **todos** os usuários no Redis. Equivalente ao `/limpar tudo`, mas acessível pelo novo comando unificado.
-
-O que escrever no WhatsApp:
-```
-/apagar redis
-```
-
-Resposta do bot:
-```
-🧹 Memória de todas as conversas apagada no Redis (5 sessões).
-```
-
----
-
-#### Apagar mensagens do bot no WhatsApp
-
-Apaga fisicamente as mensagens enviadas pelo bot em **todos** os chats — equivale ao "apagar para todos" do WhatsApp. Só funciona para mensagens enviadas **após** a implantação (os IDs são armazenados no Redis com TTL de 6 dias).
-
-O que escrever no WhatsApp:
-```
-/apagar mensagens
-```
-
-Resposta do bot:
-```
-🗑️ 87 mensagens apagadas no WhatsApp (12 chats).
-```
-
-> **Limitação:** apenas mensagens enviadas **pelo bot** podem ser apagadas. Mensagens dos usuários não são afetadas.
-
----
-
 #### Ver ajuda no WhatsApp
 
 O que escrever no WhatsApp:
@@ -418,16 +368,25 @@ O que escrever no WhatsApp:
 
 Resposta do bot:
 ```
-Comandos disponíveis:
-/autorizar 5511999 Nome | Setor | Casa
-/autorizar 5511999 Nome | Setor | Casa | admin
-/bloquear 5511999
-/remover 5511999
-/limpar 5511999
-/limpar tudo
-/apagar redis
-/apagar mensagens
-/usuarios
+*Comandos disponíveis:*
+
+*/autorizar* 5511999 Nome | Setor | Casa
+→ Autoriza um novo usuário padrão
+
+*/autorizar* 5511999 Nome | Setor | Casa | admin
+→ Autoriza um novo usuário como administrador
+
+*/bloquear* 5511999
+→ Bloqueia o acesso de um usuário
+
+*/remover* 5511999
+→ Remove o usuário do sistema permanentemente
+
+*/usuarios*
+→ Lista todos os usuários padrão cadastrados
+
+*/usuarios admin*
+→ Lista todos os administradores cadastrados
 ```
 
 ---

@@ -37,10 +37,10 @@ def send_whatsapp_message(number: str, text: str) -> str | None:
     return None
 
 
-def delete_whatsapp_message(chat_id: str, message_id: str) -> bool:
+def delete_whatsapp_message(chat_id: str, message_id: str) -> bool | str:
     """
     Apaga uma mensagem enviada pelo bot via Evolution API (apagar para todos).
-    Retorna True se deletado com sucesso.
+    Retorna True se deletado com sucesso, ou string com erro para debug.
     """
     url = f"{EVOLUTION_API_URL}/message/delete/{EVOLUTION_INSTANCE_NAME}"
     headers = {
@@ -50,17 +50,15 @@ def delete_whatsapp_message(chat_id: str, message_id: str) -> bool:
     payload = {"id": message_id, "remoteJid": chat_id, "fromMe": True}
 
     try:
-        response = requests.delete(url=url, json=payload, headers=headers, timeout=15)
+        response = requests.post(url=url, json=payload, headers=headers, timeout=15)
         response.raise_for_status()
         return True
     except requests.exceptions.Timeout:
-        logger.error("Timeout ao apagar mensagem %s", message_id)
+        return "TIMEOUT"
     except requests.exceptions.HTTPError as e:
-        logger.error("Erro HTTP ao apagar mensagem %s: %s — %s", message_id, e.response.status_code, e.response.text)
+        return f"{e.response.status_code}: {e.response.text[:300]}"
     except requests.exceptions.RequestException as e:
-        logger.error("Falha ao apagar mensagem %s: %s", message_id, e)
-
-    return False
+        return f"ERR: {e}"
 
 
 def get_media_base64(message_key: dict) -> str:
