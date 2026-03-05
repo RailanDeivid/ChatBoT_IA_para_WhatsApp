@@ -391,25 +391,6 @@ Resposta do bot:
 
 ---
 
-### Auto-delete automático de mensagens
-
-O bot pode apagar automaticamente todas as mensagens que enviou no WhatsApp a cada N dias, sem nenhuma ação manual.
-
-Configure no `.env`:
-
-```env
-AUTO_DELETE_DAYS=5   # apaga a cada 5 dias (0 = desativado)
-```
-
-**Como funciona:**
-- Na inicialização do bot, o agendador APScheduler é iniciado com o intervalo configurado
-- A cada ciclo, o bot percorre todos os chats com mensagens armazenadas no Redis e chama o endpoint de deleção da Evolution API para cada mensagem
-- Após apagar, os IDs são removidos do Redis
-
-> Os IDs de mensagens são armazenados no Redis com TTL de **6 dias** — suficiente para cobrir o ciclo padrão de 5 dias. Mensagens enviadas antes da implantação desta versão não têm ID armazenado e não serão afetadas.
-
----
-
 ## Gerenciamento de Documentos (RAG)
 
 Coloque PDFs ou TXTs na pasta `rag_files/` para que o Agente RAG passe a responder perguntas sobre eles.
@@ -581,8 +562,6 @@ UNAUTHORIZED_MESSAGE=Olá! Você não está autorizado a usar este assistente. E
 # Formato: TELEFONE:NOME:SETOR:CASA:admin  (vírgula para múltiplos)
 SEED_USERS=5511999990000:João Silva:TI:Matriz:admin
 
-# Auto-delete de mensagens do WhatsApp (0 = desativado)
-AUTO_DELETE_DAYS=5
 ```
 
 ---

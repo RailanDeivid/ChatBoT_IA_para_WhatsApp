@@ -50,9 +50,6 @@ VECTOR_STORE_PATH = os.getenv("VECTOR_STORE_PATH", "vectorstore")
 # Controle de acesso
 SQLITE_PATH = os.getenv("SQLITE_PATH", "data/access.db")
 
-# Auto-delete de mensagens do WhatsApp (0 = desativado)
-AUTO_DELETE_DAYS = int(os.getenv("AUTO_DELETE_DAYS", "0"))
-
 UNAUTHORIZED_MESSAGE = os.getenv(
     "UNAUTHORIZED_MESSAGE",
     "Olá! Você não está autorizado a usar este assistente. Entre em contato com um administrador.",

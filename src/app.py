@@ -1,14 +1,12 @@
 import logging
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request
 
 from src.message_buffer import buffer_message
-from src.integrations.evolution_api import get_media_base64, send_whatsapp_message, delete_whatsapp_message
+from src.integrations.evolution_api import get_media_base64, send_whatsapp_message
 from src.integrations.transcribe import transcribe_audio
 from src.access_control import init_db, is_authorized, is_admin, authorize, revoke, delete_user, list_users
-from src.memory import get_all_sent_chats, get_sent_message_ids, clear_sent_messages
-from src.config import UNAUTHORIZED_MESSAGE, AUTO_DELETE_DAYS
+from src.config import UNAUTHORIZED_MESSAGE
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,30 +22,6 @@ app = FastAPI()
 async def startup():
     init_db()
     logger.info("Banco de controle de acesso inicializado.")
-
-    if AUTO_DELETE_DAYS > 0:
-        scheduler = AsyncIOScheduler()
-        scheduler.add_job(
-            _auto_delete_whatsapp_messages,
-            trigger="interval",
-            days=AUTO_DELETE_DAYS,
-            id="auto_delete",
-        )
-        scheduler.start()
-        logger.info("Auto-delete de mensagens agendado a cada %d dias.", AUTO_DELETE_DAYS)
-
-
-async def _auto_delete_whatsapp_messages() -> None:
-    """Apaga automaticamente todas as mensagens enviadas pelo bot no WhatsApp."""
-    chats = get_all_sent_chats()
-    total_deleted = 0
-    for chat_id in chats:
-        ids = get_sent_message_ids(chat_id)
-        deleted = sum(1 for mid in ids if delete_whatsapp_message(chat_id, mid))
-        total_deleted += deleted
-        clear_sent_messages(chat_id)
-    logger.info("Auto-delete concluído: %d mensagens apagadas em %d chats.", total_deleted, len(chats))
-
 
 @app.get("/health")
 async def health():
