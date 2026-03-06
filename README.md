@@ -235,7 +235,11 @@ Os usuários são armazenados em um banco SQLite no caminho definido por `SQLITE
 | `casa` | Estabelecimento/unidade (ex: Matriz, Filial) |
 | `is_admin` | `1` = admin, `0` = usuário comum |
 | `active` | `1` = ativo, `0` = bloqueado |
-| `adicionado_por` | Número de quem autorizou (ou `sistema` para seeds) |
+| `adicionado_por` | Telefone de quem autorizou (legado / compat.) |
+| `adicionado_por_tel` | Telefone de quem autorizou |
+| `adicionado_por_nome` | Nome de quem autorizou |
+| `criado_em` | Data/hora de criação do registro |
+| `alterado_em` | Data/hora da última alteração (bloquear/desbloquear/autorizar) |
 
 ### Configuração inicial — usuários seed (admin)
 
@@ -301,7 +305,7 @@ Resposta do bot:
 
 O que escrever no WhatsApp:
 ```
-/autorizar 5511977770000 Carlos Lima | Analista | Matriz
+/autorizar 5511977770000 ; Carlos Lima ; Analista ; Matriz
 ```
 
 Resposta do bot:
@@ -315,7 +319,7 @@ Resposta do bot:
 
 O que escrever no WhatsApp:
 ```
-/autorizar 5511966660000 Ana Reis | Analista | Matriz | admin
+/autorizar 5511966660000 ; Ana Reis ; Analista ; Matriz ; admin
 ```
 
 Resposta do bot:
@@ -329,7 +333,7 @@ Resposta do bot:
 
 #### Bloquear usuário
 
-Desativa o acesso sem apagar o registro. Pode ser reativado com `/autorizar`.
+Desativa o acesso sem apagar o registro. Pode ser reativado com `/desbloquear`.
 
 O que escrever no WhatsApp:
 ```
@@ -340,6 +344,24 @@ Resposta do bot:
 ```
 🚫 Carlos Lima (5511977770000) bloqueado com sucesso.
 ```
+
+---
+
+#### Desbloquear usuário
+
+Reativa um usuário bloqueado **sem alterar nenhum dado** (nome, cargo, casa, perfil). Não é necessário redigitar as informações.
+
+O que escrever no WhatsApp:
+```
+/desbloquear 5511977770000
+```
+
+Resposta do bot:
+```
+✅ Carlos Lima (5511977770000) desbloqueado com sucesso.
+```
+
+> Se o usuário já estiver ativo, o bot informa: `⚠️ Carlos Lima já está ativo.`
 
 ---
 
@@ -370,14 +392,17 @@ Resposta do bot:
 ```
 *Comandos disponíveis:*
 
-*/autorizar* 5511999 Nome | Cargo | Casa
+*/autorizar* 5511999 ; Nome ; Cargo ; Casa
 → Autoriza um novo usuário padrão
 
-*/autorizar* 5511999 Nome | Cargo | Casa | admin
+*/autorizar* 5511999 ; Nome ; Cargo ; Casa ; admin
 → Autoriza um novo usuário como administrador
 
 */bloquear* 5511999
 → Bloqueia o acesso de um usuário
+
+*/desbloquear* 5511999
+→ Desbloqueia um usuário sem alterar seus dados
 
 */remover* 5511999
 → Remove o usuário do sistema permanentemente

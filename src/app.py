@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from src.message_buffer import buffer_message
 from src.integrations.evolution_api import get_media_base64, send_whatsapp_message
 from src.integrations.transcribe import transcribe_audio
-from src.access_control import init_db, is_authorized, is_admin, authorize, revoke, delete_user, list_users
+from src.access_control import init_db, is_authorized, is_admin, authorize, revoke, unblock, delete_user, list_users, get_user_nome
 from src.config import UNAUTHORIZED_MESSAGE
 
 logging.basicConfig(
@@ -123,6 +123,12 @@ def _handle_admin_command(message: str, admin_phone: str) -> str | None:
             return "⚠️ Uso: /bloquear 5511999999999"
         return revoke(phone, revoked_by=admin_phone)
 
+    if cmd == "/desbloquear":
+        phone = args.strip()
+        if not phone:
+            return "⚠️ Uso: /desbloquear 5511999999999"
+        return unblock(phone, unblocked_by=admin_phone)
+
     if cmd == "/remover":
         phone = args.strip()
         if not phone:
@@ -137,12 +143,14 @@ def _handle_admin_command(message: str, admin_phone: str) -> str | None:
     if cmd == "/ajuda":
         return (
             "*Comandos disponíveis:*\n\n"
-            "*/autorizar* 5511999 Nome | Cargo | Casa\n"
+            "*/autorizar* 5511999 ; Nome ; Cargo ; Casa\n"
             "→ Autoriza um novo usuário padrão\n\n"
-            "*/autorizar* 5511999 Nome | Cargo | Casa | admin\n"
+            "*/autorizar* 5511999 ; Nome ; Cargo ; Casa ; admin\n"
             "→ Autoriza um novo usuário como administrador\n\n"
             "*/bloquear* 5511999\n"
             "→ Bloqueia o acesso de um usuário\n\n"
+            "*/desbloquear* 5511999\n"
+            "→ Desbloqueia um usuário sem alterar seus dados\n\n"
             "*/remover* 5511999\n"
             "→ Remove o usuário do sistema permanentemente\n\n"
             "*/usuarios*\n"
@@ -156,30 +164,28 @@ def _handle_admin_command(message: str, admin_phone: str) -> str | None:
 
 def _cmd_autorizar(args: str, admin_phone: str) -> str:
     """
-    Formato: 5511999999999 Nome | Cargo | Casa
-         ou: 5511999999999 Nome | Cargo | Casa | admin
+    Formato: 5511999999999 ; Nome ; Cargo ; Casa
+         ou: 5511999999999 ; Nome ; Cargo ; Casa ; admin
     """
-    try:
-        phone_part, rest = args.split(None, 1)
-    except ValueError:
-        return "⚠️ Uso: /autorizar 5511999999999 Nome | Cargo | Casa"
+    fields = [f.strip() for f in args.split(";")]
 
-    fields = [f.strip() for f in rest.split("|")]
+    if len(fields) < 4:
+        return "⚠️ Uso: /autorizar 5511999999999 ; Nome ; Cargo ; Casa"
 
-    if len(fields) < 3:
-        return "⚠️ Uso: /autorizar 5511999999999 Nome | Cargo | Casa"
-
-    nome  = fields[0]
-    cargo = fields[1]
-    casa = fields[2]
-    admin = len(fields) >= 4 and fields[3].lower() == "admin"
+    phone_part = fields[0]
+    nome  = fields[1]
+    cargo = fields[2]
+    casa  = fields[3]
+    admin = len(fields) >= 5 and fields[4].lower() == "admin"
+    added_by_nome = get_user_nome(admin_phone)
 
     return authorize(
-        phone=phone_part.strip(),
+        phone=phone_part,
         nome=nome,
         cargo=cargo,
         casa=casa,
-        added_by=admin_phone,
+        added_by_tel=admin_phone,
+        added_by_nome=added_by_nome,
         admin=admin,
     )
 

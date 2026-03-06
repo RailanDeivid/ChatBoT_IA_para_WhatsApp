@@ -19,24 +19,32 @@ def init_db() -> None:
     with _get_conn() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS authorized_users (
-                telefone    TEXT PRIMARY KEY,
-                nome        TEXT NOT NULL,
-                cargo       TEXT,
-                casa       TEXT,
-                is_admin    INTEGER DEFAULT 0,
-                active      INTEGER DEFAULT 1,
-                adicionado_por TEXT,
-                criado_em   TEXT DEFAULT (datetime('now'))
+                telefone            TEXT PRIMARY KEY,
+                nome                TEXT NOT NULL,
+                cargo               TEXT,
+                casa                TEXT,
+                is_admin            INTEGER DEFAULT 0,
+                active              INTEGER DEFAULT 1,
+                adicionado_por      TEXT,
+                adicionado_por_tel  TEXT,
+                adicionado_por_nome TEXT,
+                criado_em           TEXT DEFAULT (datetime('now')),
+                alterado_em         TEXT
             )
         """)
         cols = [row[1] for row in conn.execute("PRAGMA table_info(authorized_users)").fetchall()]
-        # garante coluna casa
+        # garante colunas antigas
         if "casa" not in cols:
             conn.execute("ALTER TABLE authorized_users ADD COLUMN casa TEXT")
-            cols = [row[1] for row in conn.execute("PRAGMA table_info(authorized_users)").fetchall()]
-        # garante coluna cargo
         if "cargo" not in cols:
             conn.execute("ALTER TABLE authorized_users ADD COLUMN cargo TEXT")
+        # garante novas colunas de auditoria
+        if "adicionado_por_tel" not in cols:
+            conn.execute("ALTER TABLE authorized_users ADD COLUMN adicionado_por_tel TEXT")
+        if "adicionado_por_nome" not in cols:
+            conn.execute("ALTER TABLE authorized_users ADD COLUMN adicionado_por_nome TEXT")
+        if "alterado_em" not in cols:
+            conn.execute("ALTER TABLE authorized_users ADD COLUMN alterado_em TEXT")
         conn.commit()
 
     from src.config import SEED_USERS
@@ -106,7 +114,16 @@ def list_users() -> list[dict]:
 # Mutações (usadas pelos comandos admin via WhatsApp)
 # ---------------------------------------------------------------------------
 
-def authorize(phone: str, nome: str, cargo: str, casa: str, added_by: str, admin: bool = False) -> str:
+def get_user_nome(phone: str) -> str:
+    """Retorna o nome do usuário pelo telefone, ou o próprio telefone se não encontrado."""
+    with _get_conn() as conn:
+        row = conn.execute(
+            "SELECT nome FROM authorized_users WHERE telefone = ?", (phone,)
+        ).fetchone()
+    return row["nome"] if row else phone
+
+
+def authorize(phone: str, nome: str, cargo: str, casa: str, added_by_tel: str, added_by_nome: str = "", admin: bool = False) -> str:
     """Adiciona ou reativa um usuário. Retorna mensagem de feedback."""
     with _get_conn() as conn:
         existing = conn.execute(
@@ -116,21 +133,25 @@ def authorize(phone: str, nome: str, cargo: str, casa: str, added_by: str, admin
         if existing:
             conn.execute(
                 """UPDATE authorized_users
-                   SET nome=?, cargo=?, casa=?, is_admin=?, active=1, adicionado_por=?
+                   SET nome=?, cargo=?, casa=?, is_admin=?, active=1,
+                       adicionado_por=?, adicionado_por_tel=?, adicionado_por_nome=?,
+                       alterado_em=datetime('now')
                    WHERE telefone=?""",
-                (nome, cargo, casa, int(admin), added_by, phone),
+                (nome, cargo, casa, int(admin), added_by_tel, added_by_tel, added_by_nome, phone),
             )
             action = "reativado"
         else:
             conn.execute(
-                """INSERT INTO authorized_users (telefone, nome, cargo, casa, is_admin, adicionado_por)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (phone, nome, cargo, casa, int(admin), added_by),
+                """INSERT INTO authorized_users
+                       (telefone, nome, cargo, casa, is_admin, adicionado_por,
+                        adicionado_por_tel, adicionado_por_nome)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (phone, nome, cargo, casa, int(admin), added_by_tel, added_by_tel, added_by_nome),
             )
             action = "autorizado"
         conn.commit()
 
-    logger.info("Usuário %s (%s) %s por %s", nome, phone, action, added_by)
+    logger.info("Usuário %s (%s) %s por %s", nome, phone, action, added_by_tel)
     return f"✅ {nome} ({phone}) {action} com sucesso."
 
 
@@ -147,12 +168,35 @@ def revoke(phone: str, revoked_by: str) -> str:
             return f"⚠️ {row['nome']} já estava bloqueado."
 
         conn.execute(
-            "UPDATE authorized_users SET active=0 WHERE telefone=?", (phone,)
+            "UPDATE authorized_users SET active=0, alterado_em=datetime('now') WHERE telefone=?",
+            (phone,)
         )
         conn.commit()
 
     logger.info("Usuário %s bloqueado por %s", phone, revoked_by)
     return f"🚫 {row['nome']} ({phone}) bloqueado com sucesso."
+
+
+def unblock(phone: str, unblocked_by: str) -> str:
+    """Reativa um usuário bloqueado sem alterar seus dados. Retorna mensagem de feedback."""
+    with _get_conn() as conn:
+        row = conn.execute(
+            "SELECT nome, active FROM authorized_users WHERE telefone = ?", (phone,)
+        ).fetchone()
+
+        if not row:
+            return f"⚠️ Número {phone} não encontrado."
+        if row["active"]:
+            return f"⚠️ {row['nome']} já está ativo."
+
+        conn.execute(
+            "UPDATE authorized_users SET active=1, alterado_em=datetime('now') WHERE telefone=?",
+            (phone,)
+        )
+        conn.commit()
+
+    logger.info("Usuário %s desbloqueado por %s", phone, unblocked_by)
+    return f"✅ {row['nome']} ({phone}) desbloqueado com sucesso."
 
 
 def delete_user(phone: str, deleted_by: str) -> str:

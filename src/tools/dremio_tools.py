@@ -62,3 +62,77 @@ class DremioSalesQueryTool(BaseTool):
     async def _arun(self, query: str) -> str:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._run, query)
+
+
+# class DremioDeliveryQueryTool(BaseTool):
+#     name: str = "consultar_delivery"
+#     description: str = (
+#         "Use EXCLUSIVAMENTE para perguntas sobre VENDAS DELIVERY, pedidos delivery, faturamento delivery. "
+#         "Executa SQL no Dremio. Tabela: views.\"fSales_Delivery\". "
+#         "Colunas disponíveis: "
+#         "codigo_casa (TEXT, código do estabelecimento), "
+#         "data_evento (DATE, data do pedido), "
+#         "valor_liquido_final (DOUBLE, valor líquido final — use para totais de faturamento), "
+#         "quantidade (FLOAT, quantidade de itens). "
+#         + _CODIGO_CASA_HINT
+#         + "SINTAXE DE DATAS no Dremio: use DATE_SUB(CURRENT_DATE, 1) (ontem), "
+#         "CURRENT_DATE - INTERVAL '7' DAY (últimos 7 dias), "
+#         "DATE_TRUNC('month', CURRENT_DATE) (início do mês). "
+#         "NUNCA use CURRENT_DATE - INTERVAL '1 day' nem CURRENT_DATE - 1. "
+#         "OBRIGATÓRIO: SEMPRE gere SQL com sintaxe 100% válida para Dremio. "
+#         "Input: query SQL válida para Dremio."
+#     )
+
+#     def _run(self, query: str) -> str:
+#         query = strip_markdown(query)
+#         logger.info("Executando query Dremio (delivery): %s", query)
+#         try:
+#             df = client(query)
+#             if df.empty:
+#                 return "Nenhum resultado encontrado."
+#             logger.info("Query OK — %d linhas retornadas.", len(df))
+#             return df.to_string(index=False)
+#         except Exception as e:
+#             logger.error("ERRO Dremio (delivery): %s: %s", type(e).__name__, e)
+#             return f"Erro ao consultar Dremio (delivery): {str(e)}"
+
+#     async def _arun(self, query: str) -> str:
+#         loop = asyncio.get_running_loop()
+#         return await loop.run_in_executor(None, self._run, query)
+
+
+
+
+# class DremioPaymentQueryTool(BaseTool):
+#     name: str = "consultar_forma_pagamento"
+#     description: str = (
+#         "Use EXCLUSIVAMENTE para perguntas sobre faturamento por FORMA DE PAGAMENTO, "
+#         "mix de pagamentos, participação de cada forma (dinheiro, cartão, pix, etc). "
+#         "Executa SQL no Dremio. Tabela: views.\"tabela_forma_pagamento\". "
+#         "Colunas disponíveis: "
+#         "codigo_casa (TEXT, código do estabelecimento), "
+#         "data_evento (DATE, data da venda), "
+#         "forma_pagamento (TEXT, ex: DINHEIRO, CARTAO_CREDITO, PIX), "
+#         "valor_total (DOUBLE, valor faturado nessa forma de pagamento). "
+#         + _CODIGO_CASA_HINT
+#         + "SINTAXE DE DATAS no Dremio: use DATE_SUB(CURRENT_DATE, 1) para ontem, "
+#         "DATE_TRUNC('month', CURRENT_DATE) para início do mês. "
+#         "Input: query SQL válida para Dremio."
+#     )
+
+#     def _run(self, query: str) -> str:
+#         query = strip_markdown(query)
+#         logger.info("Executando query Dremio (pagamentos): %s", query)
+#         try:
+#             df = client(query)
+#             if df.empty:
+#                 return "Nenhum resultado encontrado."
+#             logger.info("Query OK — %d linhas retornadas.", len(df))
+#             return df.to_string(index=False)
+#         except Exception as e:
+#             logger.error("ERRO Dremio (pagamentos): %s: %s", type(e).__name__, e)
+#             return f"Erro ao consultar Dremio (pagamentos): {str(e)}"
+
+#     async def _arun(self, query: str) -> str:
+#         loop = asyncio.get_running_loop()
+#         return await loop.run_in_executor(None, self._run, query)
