@@ -86,6 +86,20 @@ Thought:{agent_scratchpad}"""
 rag_prompt = PromptTemplate.from_template(RAG_PROMPT_TEMPLATE)
 
 
+GENERAL_PROMPT_TEMPLATE = """Voce e o NINOIA, assistente interno da empresa.
+
+Data e hora atual: {current_date}
+{sender_context}
+{history}
+Voce pode ajudar com: dados de vendas/faturamento, compras, formas de pagamento, delivery e documentos/politicas internas.
+Para perguntas fora desse escopo, informe gentilmente o que voce pode ajudar.
+Responda de forma amigavel e objetiva em PORTUGUES.
+
+Mensagem: {input}"""
+
+general_prompt = PromptTemplate.from_template(GENERAL_PROMPT_TEMPLATE)
+
+
 ROUTER_PROMPT_TEMPLATE = """Classifique a pergunta abaixo em uma das categorias:
 - "sql": perguntas sobre vendas, faturamento, receita, compras, pedidos, fornecedores, estoque, ticket medio, SSS, fluxo de pessoas
 - "docs": perguntas sobre documentos internos, politicas, organograma, contatos, emails, ramais, setores, quem procurar, procedimentos, manuais

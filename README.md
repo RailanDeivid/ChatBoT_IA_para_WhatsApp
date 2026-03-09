@@ -1,6 +1,6 @@
 # whatsapp-agent
 
-Assistente inteligente integrado ao WhatsApp com arquitetura **multi-agente**: um **Router LLM** classifica cada pergunta e roteia para o **Agente SQL** (GPT-4o + Dremio/MySQL, para dados de vendas e compras) ou para o **Agente RAG** (GPT-4o + Chroma, para documentos internos como políticas, organograma e contatos).
+Assistente inteligente integrado ao WhatsApp com arquitetura **multi-agente**: um **Router LLM** classifica cada pergunta e roteia para o **Agente SQL** (GPT-4o + Dremio/MySQL, para dados de vendas e compras), o **Agente RAG** (GPT-4o + Chroma, para documentos internos como políticas, organograma e contatos), ou responde diretamente via **LLM** para saudações e perguntas fora do escopo.
 
 ## Perguntas sobre Compras
 ### Interação por Texto :
@@ -50,7 +50,7 @@ whatsapp-agent/
 │   ├── config.py                   # Leitura das variáveis de ambiente (.env)
 │   ├── memory.py                   # Histórico de conversa via Redis (TTL 24h)
 │   ├── message_buffer.py           # Buffer de mensagens com debounce
-│   ├── prompts.py                  # Prompts: ReAct SQL (NINOIA), ReAct RAG, Router
+│   ├── prompts.py                  # Prompts: ReAct SQL (NINOIA), ReAct RAG, Router, Geral (LLM direto)
 │   ├── vectorstore.py              # RAG: indexação de PDFs/TXTs via Chroma + OpenAI Embeddings
 │   ├── docs/
 │   │   └── architecture.svg        # Diagrama do fluxo completo
@@ -85,22 +85,23 @@ mensagem → route_and_invoke()
                 │
          [Router LLM]         ← classifica a intenção: sql / docs / ambos / geral
                 │
-     ┌──────────┼──────────┐
-   "sql"      "docs"     "geral"
-     │           │           │
-[Agente SQL] [Agente RAG] [Agente SQL]
-GPT-4o       GPT-4o       (responde sem tool)
-Dremio+MySQL Chroma
+     ┌──────────┼──────────┬──────────┐
+   "sql"      "docs"    "ambos"    "geral"
+     │           │           │           │
+[Agente SQL] [Agente RAG] [Agente SQL] [LLM direto]
+GPT-4o       GPT-4o       +            GPT-4o
+Dremio+MySQL Chroma       [Agente RAG] sem ferramentas
+                          (sequencial)
 ```
 
 | Rota | Quando aciona | Ferramentas |
 |---|---|---|
 | `sql` | Vendas, faturamento, delivery, formas de pagamento, compras, pedidos, SSS, ticket médio | `consultar_vendas` (Dremio) + `consultar_delivery` (Dremio) + `consultar_formas_pagamento` (Dremio) + `consultar_compras` (MySQL) |
 | `docs` | Políticas, organograma, contatos, emails, ramais, quem procurar | `consultar_documentos` (Chroma) |
-| `ambos` | Pergunta envolve dados numéricos E documentos ao mesmo tempo | Executa os dois agentes em sequência |
-| `geral` | Saudações, agradecimentos, perguntas fora do escopo | Agente SQL responde sem acionar ferramentas |
+| `ambos` | Pergunta envolve dados numéricos E documentos ao mesmo tempo | Executa Agente SQL + Agente RAG em sequência e combina as respostas |
+| `geral` | Saudações, agradecimentos, perguntas fora do escopo | Nenhuma — LLM chamado diretamente (sem ReAct, sem ferramentas) |
 
-Cada agente tem seu próprio **prompt especializado** e **ferramentas exclusivas** — o Agente SQL nunca acessa documentos e o Agente RAG nunca acessa bancos de dados.
+Cada agente tem seu próprio **prompt especializado** e **ferramentas exclusivas** — o Agente SQL nunca acessa documentos e o Agente RAG nunca acessa bancos de dados. Para `geral`, não há overhead de agente ReAct: o modelo responde diretamente via `general_prompt`.
 
 ---
 
@@ -711,6 +712,12 @@ O comportamento de cada agente está definido em [src/prompts.py](src/prompts.py
 - Para contatos e emails: lista de forma organizada o que estiver nos documentos
 - Nunca inventa informações
 
+### Resposta Geral (`general_prompt`)
+- Chamada direta ao LLM — **sem agente ReAct, sem ferramentas**
+- Usada para saudações, agradecimentos e perguntas fora do escopo
+- Resposta mais rápida e de menor custo (sem overhead de Thought/Action/Observation)
+- Informa gentilmente o que o bot pode ajudar se a pergunta estiver fora do escopo
+
 ### Router (`router_prompt`)
 - Classifica a intenção em: `sql`, `docs`, `ambos` ou `geral`
 - `geral` é usado para saudações, agradecimentos e perguntas fora do escopo
@@ -770,6 +777,7 @@ Cada mensagem respondida consome tokens em até duas etapas: **Router LLM** (cla
 | Mensagem SQL simples | ~$0,002 | ~R$0,012 |
 | Mensagem SQL com histórico ativo | ~$0,004 | ~R$0,023 |
 | Mensagem RAG (busca em documentos) | ~$0,002 | ~R$0,012 |
+| Mensagem geral (saudação/fora do escopo) | ~$0,0003 | ~R$0,002 |
 | Áudio de 30s + agente | ~$0,005 | ~R$0,029 |
 | Indexação de PDF (~5 páginas) | ~$0,001 (uma vez) | ~R$0,006 |
 

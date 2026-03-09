@@ -8,7 +8,7 @@ from langchain_openai import ChatOpenAI
 
 from src.config import OPENAI_MODEL_NAME, OPENAI_MODEL_TEMPERATURE
 from src.memory import get_session_history
-from src.prompts import react_prompt, rag_prompt, router_prompt
+from src.prompts import react_prompt, rag_prompt, router_prompt, general_prompt
 from src.tools.dremio_tools import DremioSalesQueryTool, DremioDeliveryQueryTool, DremioPaymentQueryTool
 from src.tools.mysql_tools import MySQLPurchasesQueryTool
 from src.tools.rag_tool import RAGDocumentQueryTool
@@ -175,6 +175,18 @@ def _run_rag_agent(message: str, session_id: str, sender_name: str) -> str:
         return 'Desculpe, ocorreu um erro ao consultar os documentos.'
 
 
+def _run_general_response(message: str, session_id: str, sender_name: str) -> str:
+    history = get_session_history(session_id)
+    invoke_input = _build_invoke_input(message, history, sender_name)
+    try:
+        prompt_text = general_prompt.format(**invoke_input)
+        result = _get_model().invoke(prompt_text)
+        return result.content
+    except Exception as e:
+        logger.error("Erro na resposta geral: %s", e)
+        return "Olá! Como posso ajudar?"
+
+
 def _classify_intent(message: str) -> str:
     try:
         result = _get_model().invoke(router_prompt.format(input=message))
@@ -206,16 +218,16 @@ def route_and_invoke(message: str, session_id: str, sender_name: str = "") -> st
     category = _classify_intent(message)
     logger.info("Intencao classificada como '%s' para: %.80s", category, message)
 
-    if category == "geral":
+    if category == "sql":
         response = _run_sql_agent(message, session_id, sender_name)
     elif category == "docs":
         response = _run_rag_agent(message, session_id, sender_name)
     elif category == "ambos":
         sql_resp = _run_sql_agent(message, session_id, sender_name)
         docs_resp = _run_rag_agent(message, session_id, sender_name)
-        response = f"{sql_resp}\n\n{docs_resp}"
-    else:
-        response = _run_sql_agent(message, session_id, sender_name)
+        response = f"{sql_resp}\n\n---\n\n{docs_resp}"
+    else:  # geral
+        response = _run_general_response(message, session_id, sender_name)
 
     _save_to_history(message, response, session_id)
     return response
