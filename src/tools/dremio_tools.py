@@ -23,16 +23,18 @@ class DremioSalesQueryTool(BaseTool):
     name: str = "consultar_vendas"
     description: str = (
         "Use EXCLUSIVAMENTE para perguntas sobre VENDAS, faturamento, receita ou dados financeiros. Sempre agrupar as querys para tarzer um resultado mais limpo e direto. "
-        "Executa SQL no Dremio. Tabela: views.\"financial_sales_testes\". "
+        "Executa SQL no Dremio. Tabela: views.\"AI_AGENTS\".\"fSales\". "
         "Se for perguntado sobre ticket medio (não é coluna — calcular como SUM(valor_liquido_final) / SUM(distribuicao_pessoas))."
         "Colunas disponíveis: "
         "codigo_casa (TEXT, código do estabelecimento é o nome da CASA), "
         "data_evento (DATE, data da venda), "
+        "hora_item (FLOAT, hora do item, Use para agrupar por horário e sempre retorne com primeira hora sendo 06:00 e última sendo 05:59. Como calcular: Se o usuario informar uma data específica, filtre a data e depois traga as o valor_liquido_final por hora), "
         "descricao_produto (TEXT, nome do produto vendido), "
         "quantidade (FLOAT, quantidade vendida), "
         "valor_produto (DOUBLE, valor unitário do produto), "
         "nome_funcionario (TEXT, nome do funcionário), "
         "valor_liquido_final (DOUBLE, valor líquido final após descontos é o valor a ser considerado), "
+        "desconto_total (FLOAT, desconto total aplicado, use para calcular o valor total de descontos), "
         "distribuicao_pessoas (FLOAT, distribuição por pessoas, somar a coluna para ter o Fluxo), "
         "ticket_medio (não é coluna — calcular como SUM(valor_liquido_final) / SUM(distribuicao_pessoas)). "
         + _CODIGO_CASA_HINT
@@ -64,75 +66,93 @@ class DremioSalesQueryTool(BaseTool):
         return await loop.run_in_executor(None, self._run, query)
 
 
-# class DremioDeliveryQueryTool(BaseTool):
-#     name: str = "consultar_delivery"
-#     description: str = (
-#         "Use EXCLUSIVAMENTE para perguntas sobre VENDAS DELIVERY, pedidos delivery, faturamento delivery. "
-#         "Executa SQL no Dremio. Tabela: views.\"fSales_Delivery\". "
-#         "Colunas disponíveis: "
-#         "codigo_casa (TEXT, código do estabelecimento), "
-#         "data_evento (DATE, data do pedido), "
-#         "valor_liquido_final (DOUBLE, valor líquido final — use para totais de faturamento), "
-#         "quantidade (FLOAT, quantidade de itens). "
-#         + _CODIGO_CASA_HINT
-#         + "SINTAXE DE DATAS no Dremio: use DATE_SUB(CURRENT_DATE, 1) (ontem), "
-#         "CURRENT_DATE - INTERVAL '7' DAY (últimos 7 dias), "
-#         "DATE_TRUNC('month', CURRENT_DATE) (início do mês). "
-#         "NUNCA use CURRENT_DATE - INTERVAL '1 day' nem CURRENT_DATE - 1. "
-#         "OBRIGATÓRIO: SEMPRE gere SQL com sintaxe 100% válida para Dremio. "
-#         "Input: query SQL válida para Dremio."
-#     )
+class DremioDeliveryQueryTool(BaseTool):
+    name: str = "consultar_delivery"
+    description: str = (
+        "Use EXCLUSIVAMENTE para perguntas sobre VENDAS DELIVERY, pedidos delivery, faturamento delivery. Sempre agrupar as querys para trazer um resultado mais limpo e direto. "
+        "Executa SQL no Dremio. Tabela: views.\"AI_AGENTS\".\"fSalesDelivery\". "
+        "Se for perguntado sobre ticket medio (não é coluna — calcular como SUM(valor_liquido_final) / SUM(distribuicao_pessoas))."
+        "Colunas disponíveis: "
+        "codigo_casa (TEXT, código do estabelecimento é o nome da CASA), "
+        "data_evento (DATE, data do pedido delivery), "
+        "hora_item (FLOAT, hora do item, Use para agrupar por horário e sempre retorne com primeira hora sendo 06:00 e última sendo 05:59. Como calcular: Se o usuario informar uma data específica, filtre a data e depois traga as o valor_liquido_final por hora), "
+        "codigo_produto (TEXT, código do produto), "
+        "descricao_produto (TEXT, nome do produto vendido), "
+        "quantidade (FLOAT, quantidade de itens vendidos), "
+        "valor_produto (DOUBLE, valor unitário do produto), "
+        "valor_venda (DOUBLE, valor de venda antes de descontos), "
+        "desconto_produto (FLOAT, desconto aplicado no produto), "
+        "desconto_total (FLOAT, desconto total aplicado no pedido), "
+        "nome_funcionario (TEXT, nome do funcionário responsável), "
+        "valor_conta (DOUBLE, valor total da conta/pedido), "
+        "valor_liquido_final (DOUBLE, valor líquido final após descontos — use para totais de faturamento), "
+        "distribuicao_pessoas (FLOAT, distribuição por pessoas, somar a coluna para ter o Fluxo), "
+        "ticket_medio (não é coluna — calcular como SUM(valor_liquido_final) / SUM(distribuicao_pessoas)). "
+        + _CODIGO_CASA_HINT
+        + "SINTAXE DE DATAS no Dremio: use DATE_SUB(CURRENT_DATE, 1) (ontem), "
+        "CURRENT_DATE - INTERVAL '7' DAY (últimos 7 dias), "
+        "DATE_TRUNC('month', CURRENT_DATE) (início do mês). "
+        "NUNCA use CURRENT_DATE - INTERVAL '1 day' nem CURRENT_DATE - 1. "
+        "OBRIGATÓRIO: SEMPRE gere SQL com sintaxe 100% válida para Dremio. "
+        "Input: query SQL válida para Dremio."
+    )
 
-#     def _run(self, query: str) -> str:
-#         query = strip_markdown(query)
-#         logger.info("Executando query Dremio (delivery): %s", query)
-#         try:
-#             df = client(query)
-#             if df.empty:
-#                 return "Nenhum resultado encontrado."
-#             logger.info("Query OK — %d linhas retornadas.", len(df))
-#             return df.to_string(index=False)
-#         except Exception as e:
-#             logger.error("ERRO Dremio (delivery): %s: %s", type(e).__name__, e)
-#             return f"Erro ao consultar Dremio (delivery): {str(e)}"
+    def _run(self, query: str) -> str:
+        query = strip_markdown(query)
+        logger.info("Executando query Dremio (delivery): %s", query)
+        try:
+            df = client(query)
+            if df.empty:
+                return "Nenhum resultado encontrado."
+            logger.info("Query OK — %d linhas retornadas.", len(df))
+            return df.to_string(index=False)
+        except Exception as e:
+            logger.error("ERRO Dremio (delivery): %s: %s", type(e).__name__, e)
+            return f"Erro ao consultar Dremio (delivery): {str(e)}"
 
-#     async def _arun(self, query: str) -> str:
-#         loop = asyncio.get_running_loop()
-#         return await loop.run_in_executor(None, self._run, query)
-
-
+    async def _arun(self, query: str) -> str:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._run, query)
 
 
-# class DremioPaymentQueryTool(BaseTool):
-#     name: str = "consultar_forma_pagamento"
-#     description: str = (
-#         "Use EXCLUSIVAMENTE para perguntas sobre faturamento por FORMA DE PAGAMENTO, "
-#         "mix de pagamentos, participação de cada forma (dinheiro, cartão, pix, etc). "
-#         "Executa SQL no Dremio. Tabela: views.\"tabela_forma_pagamento\". "
-#         "Colunas disponíveis: "
-#         "codigo_casa (TEXT, código do estabelecimento), "
-#         "data_evento (DATE, data da venda), "
-#         "forma_pagamento (TEXT, ex: DINHEIRO, CARTAO_CREDITO, PIX), "
-#         "valor_total (DOUBLE, valor faturado nessa forma de pagamento). "
-#         + _CODIGO_CASA_HINT
-#         + "SINTAXE DE DATAS no Dremio: use DATE_SUB(CURRENT_DATE, 1) para ontem, "
-#         "DATE_TRUNC('month', CURRENT_DATE) para início do mês. "
-#         "Input: query SQL válida para Dremio."
-#     )
 
-#     def _run(self, query: str) -> str:
-#         query = strip_markdown(query)
-#         logger.info("Executando query Dremio (pagamentos): %s", query)
-#         try:
-#             df = client(query)
-#             if df.empty:
-#                 return "Nenhum resultado encontrado."
-#             logger.info("Query OK — %d linhas retornadas.", len(df))
-#             return df.to_string(index=False)
-#         except Exception as e:
-#             logger.error("ERRO Dremio (pagamentos): %s: %s", type(e).__name__, e)
-#             return f"Erro ao consultar Dremio (pagamentos): {str(e)}"
 
-#     async def _arun(self, query: str) -> str:
-#         loop = asyncio.get_running_loop()
-#         return await loop.run_in_executor(None, self._run, query)
+class DremioPaymentQueryTool(BaseTool):
+    name: str = "consultar_formas_pagamento"
+    description: str = (
+        "Use EXCLUSIVAMENTE para perguntas sobre FORMAS DE PAGAMENTO, mix de pagamentos, "
+        "participação de cada forma (dinheiro, cartão, pix, etc), faturamento por forma de pagamento. "
+        "Sempre agrupar as querys para trazer um resultado mais limpo e direto. "
+        "Executa SQL no Dremio. Tabela: views.\"AI_AGENTS\".\"fFormasPagamento\". "
+        "Colunas disponíveis: "
+        "cnpj_casa (TEXT, CNPJ do estabelecimento), "
+        "codigo_casa (TEXT, código do estabelecimento é o nome da CASA), "
+        "data (DATE, data do registro), "
+        "descricao_forma_pagamento (TEXT, nome da forma de pagamento — ex: VISA_CREDITO, DINHEIRO, PIX, etc), "
+        "pessoas (FLOAT, número de pessoas), "
+        "vl_recebido (DOUBLE, valor bruto recebido nessa forma de pagamento — use para totais), "
+        + _CODIGO_CASA_HINT
+        + "SINTAXE DE DATAS no Dremio: use DATE_SUB(CURRENT_DATE, 1) (ontem), "
+        "CURRENT_DATE - INTERVAL '7' DAY (últimos 7 dias), "
+        "DATE_TRUNC('month', CURRENT_DATE) (início do mês). "
+        "NUNCA use CURRENT_DATE - INTERVAL '1 day' nem CURRENT_DATE - 1. "
+        "OBRIGATÓRIO: SEMPRE gere SQL com sintaxe 100% válida para Dremio. "
+        "Input: query SQL válida para Dremio."
+    )
+
+    def _run(self, query: str) -> str:
+        query = strip_markdown(query)
+        logger.info("Executando query Dremio (pagamentos): %s", query)
+        try:
+            df = client(query)
+            if df.empty:
+                return "Nenhum resultado encontrado."
+            logger.info("Query OK — %d linhas retornadas.", len(df))
+            return df.to_string(index=False)
+        except Exception as e:
+            logger.error("ERRO Dremio (pagamentos): %s: %s", type(e).__name__, e)
+            return f"Erro ao consultar Dremio (pagamentos): {str(e)}"
+
+    async def _arun(self, query: str) -> str:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._run, query)

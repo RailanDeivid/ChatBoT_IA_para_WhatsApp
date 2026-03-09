@@ -95,7 +95,7 @@ Dremio+MySQL Chroma
 
 | Rota | Quando aciona | Ferramentas |
 |---|---|---|
-| `sql` | Vendas, faturamento, compras, pedidos, SSS, ticket médio | `consultar_vendas` (Dremio) + `consultar_compras` (MySQL) |
+| `sql` | Vendas, faturamento, delivery, formas de pagamento, compras, pedidos, SSS, ticket médio | `consultar_vendas` (Dremio) + `consultar_delivery` (Dremio) + `consultar_formas_pagamento` (Dremio) + `consultar_compras` (MySQL) |
 | `docs` | Políticas, organograma, contatos, emails, ramais, quem procurar | `consultar_documentos` (Chroma) |
 | `ambos` | Pergunta envolve dados numéricos E documentos ao mesmo tempo | Executa os dois agentes em sequência |
 | `geral` | Saudações, agradecimentos, perguntas fora do escopo | Agente SQL responde sem acionar ferramentas |
@@ -119,7 +119,7 @@ Todos os serviços possuem **health checks** configurados. O `bot` e a `evolutio
 
 | Banco | Função |
 |---|---|
-| Dremio | Dados de vendas — `views."tabela_vendas"` |
+| Dremio | Dados de vendas — `views."AI_AGENTS"."fSales"`, `views."AI_AGENTS"."fSalesDelivery"` e `views."AI_AGENTS"."fFormasPagamento"` |
 | MySQL | Dados de compras — tabela `` `tabela_compras` `` |
 
 **Volumes persistentes:**

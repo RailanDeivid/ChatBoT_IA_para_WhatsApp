@@ -9,7 +9,7 @@ from langchain_openai import ChatOpenAI
 from src.config import OPENAI_MODEL_NAME, OPENAI_MODEL_TEMPERATURE
 from src.memory import get_session_history
 from src.prompts import react_prompt, rag_prompt, router_prompt
-from src.tools.dremio_tools import DremioSalesQueryTool
+from src.tools.dremio_tools import DremioSalesQueryTool, DremioDeliveryQueryTool, DremioPaymentQueryTool
 from src.tools.mysql_tools import MySQLPurchasesQueryTool
 from src.tools.rag_tool import RAGDocumentQueryTool
 
@@ -47,7 +47,7 @@ def _get_sql_executor() -> AgentExecutor:
         with _sql_executor_lock:
             if _sql_executor is None:
                 logger.info("Inicializando agente SQL...")
-                tools = [DremioSalesQueryTool(), MySQLPurchasesQueryTool()]
+                tools = [DremioSalesQueryTool(), DremioDeliveryQueryTool(), DremioPaymentQueryTool(), MySQLPurchasesQueryTool()]
                 agent = create_react_agent(llm=_get_model(), tools=tools, prompt=react_prompt)
                 _sql_executor = AgentExecutor(
                     agent=agent,

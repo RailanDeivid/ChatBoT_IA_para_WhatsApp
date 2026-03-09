@@ -1,4 +1,4 @@
-<svg width="1400" height="2850" viewBox="0 0 1400 2850"
+<svg width="1400" height="2880" viewBox="0 0 1400 2880"
 xmlns="http://www.w3.org/2000/svg">
 
 <style>
@@ -224,38 +224,48 @@ xmlns="http://www.w3.org/2000/svg">
 <text class="text-body" x="700" y="1580">geral  →  saudacoes e perguntas fora do escopo</text>
 
 <!-- Setas divergentes do router -->
-<line class="line" x1="450" y1="1640" x2="310" y2="1740"/>
+<line class="line" x1="450" y1="1640" x2="390" y2="1740"/>
 <line class="line" x1="950" y1="1640" x2="1090" y2="1740"/>
 
 <!-- Labels das rotas -->
-<rect fill="#0B0F19" stroke="#00FF88" stroke-width="1" rx="6" x="205" y="1650" width="280" height="60"/>
-<text fill="#FACC15" font-family="monospace" font-size="13px" font-weight="bold" text-anchor="middle" x="345" y="1672">sql / ambos / geral</text>
-<text fill="#FACC15" font-family="monospace" font-size="13px" font-weight="bold" text-anchor="middle" x="345" y="1694">vendas • compras • chat</text>
+<rect fill="#0B0F19" stroke="#00FF88" stroke-width="1" rx="6" x="160" y="1650" width="340" height="60"/>
+<text fill="#FACC15" font-family="monospace" font-size="13px" font-weight="bold" text-anchor="middle" x="330" y="1672">sql / ambos / geral</text>
+<text fill="#FACC15" font-family="monospace" font-size="13px" font-weight="bold" text-anchor="middle" x="330" y="1694">vendas • delivery • pagamentos • compras</text>
 
 <rect fill="#0B0F19" stroke="#00FF88" stroke-width="1" rx="6" x="940" y="1650" width="235" height="60"/>
 <text fill="#FACC15" font-family="monospace" font-size="13px" font-weight="bold" text-anchor="middle" x="1057" y="1672">docs</text>
 <text fill="#FACC15" font-family="monospace" font-size="13px" font-weight="bold" text-anchor="middle" x="1057" y="1694">documentos • contatos</text>
 
 <!-- ── AGENTE SQL (esquerda) ──────────────────────────────── -->
-<rect class="box agent" x="40" y="1740" width="540" height="200" rx="14"/>
-<text class="text-title" x="310" y="1778">Agente SQL — GPT-4o</text>
-<text class="text-body" x="310" y="1808">ReAct: Thought / Action / Observation / Final Answer</text>
-<text class="text-body" x="310" y="1833">Ferramentas: Dremio (vendas) + MySQL (compras)</text>
-<text class="text-body" x="310" y="1858">Prompt: regras SQL, SSS, confidencialidade</text>
-<text class="text-body" x="310" y="1883">geral: responde sem acionar ferramentas</text>
+<rect class="box agent" x="10" y="1740" width="760" height="200" rx="14"/>
+<text class="text-title" x="390" y="1778">Agente SQL — GPT-4o</text>
+<text class="text-body" x="390" y="1808">ReAct: Thought / Action / Observation / Final Answer</text>
+<text class="text-body" x="390" y="1833">Ferramentas: Dremio (vendas + delivery + pagamentos) + MySQL (compras)</text>
+<text class="text-body" x="390" y="1858">Prompt: regras SQL, SSS, confidencialidade</text>
+<text class="text-body" x="390" y="1883">geral: responde sem acionar ferramentas</text>
 
-<!-- Setas do agente SQL para tools -->
-<line class="line" x1="190" y1="1940" x2="130" y2="2040"/>
-<line class="line" x1="430" y1="1940" x2="400" y2="2040"/>
+<!-- Setas do agente SQL para tools (quase verticais) -->
+<line class="line" x1="100" y1="1940" x2="100" y2="2040"/>
+<line class="line" x1="290" y1="1940" x2="290" y2="2040"/>
+<line class="line" x1="480" y1="1940" x2="480" y2="2040"/>
+<line class="line" x1="670" y1="1940" x2="670" y2="2040"/>
 
 <!-- Labels SQL tools -->
-<rect fill="#0B0F19" stroke="#00FF88" stroke-width="1" rx="6" x="93" y="1962" width="160" height="42"/>
-<text fill="#FACC15" font-family="monospace" font-size="12px" font-weight="bold" text-anchor="middle" x="173" y="1978">vendas /</text>
-<text fill="#FACC15" font-family="monospace" font-size="12px" font-weight="bold" text-anchor="middle" x="173" y="1996">faturamento</text>
+<rect fill="#0B0F19" stroke="#00FF88" stroke-width="1" rx="6" x="42" y="1958" width="120" height="42"/>
+<text fill="#FACC15" font-family="monospace" font-size="12px" font-weight="bold" text-anchor="middle" x="102" y="1975">vendas /</text>
+<text fill="#FACC15" font-family="monospace" font-size="12px" font-weight="bold" text-anchor="middle" x="102" y="1992">faturamento</text>
 
-<rect fill="#0B0F19" stroke="#00FF88" stroke-width="1" rx="6" x="348" y="1962" width="160" height="42"/>
-<text fill="#FACC15" font-family="monospace" font-size="12px" font-weight="bold" text-anchor="middle" x="428" y="1978">compras /</text>
-<text fill="#FACC15" font-family="monospace" font-size="12px" font-weight="bold" text-anchor="middle" x="428" y="1996">pedidos</text>
+<rect fill="#0B0F19" stroke="#00FF88" stroke-width="1" rx="6" x="232" y="1958" width="116" height="42"/>
+<text fill="#FACC15" font-family="monospace" font-size="12px" font-weight="bold" text-anchor="middle" x="290" y="1975">vendas</text>
+<text fill="#FACC15" font-family="monospace" font-size="12px" font-weight="bold" text-anchor="middle" x="290" y="1992">delivery</text>
+
+<rect fill="#0B0F19" stroke="#00FF88" stroke-width="1" rx="6" x="418" y="1958" width="126" height="42"/>
+<text fill="#FACC15" font-family="monospace" font-size="12px" font-weight="bold" text-anchor="middle" x="481" y="1975">formas de</text>
+<text fill="#FACC15" font-family="monospace" font-size="12px" font-weight="bold" text-anchor="middle" x="481" y="1992">pagamento</text>
+
+<rect fill="#0B0F19" stroke="#00FF88" stroke-width="1" rx="6" x="612" y="1958" width="120" height="42"/>
+<text fill="#FACC15" font-family="monospace" font-size="12px" font-weight="bold" text-anchor="middle" x="672" y="1975">compras /</text>
+<text fill="#FACC15" font-family="monospace" font-size="12px" font-weight="bold" text-anchor="middle" x="672" y="1992">pedidos</text>
 
 <!-- ── AGENTE RAG (direita) ──────────────────────────────── -->
 <rect class="box agent" x="820" y="1740" width="540" height="200" rx="14"/>
@@ -267,51 +277,71 @@ xmlns="http://www.w3.org/2000/svg">
 <!-- Seta do agente RAG para tool -->
 <line class="line" x1="1090" y1="1940" x2="1090" y2="2040"/>
 
-<!-- ── DREMIO TOOL ──────────────────────────────────────────── -->
-<rect class="box" x="20" y="2040" width="220" height="160" rx="14"/>
-<text class="text-title" x="130" y="2068" font-size="15">consultar_vendas</text>
-<text class="text-body" x="130" y="2094">DremioSalesQueryTool</text>
-<text class="text-body" x="130" y="2115">REST API Dremio</text>
-<text class="text-body" x="130" y="2136">retorna DataFrame</text>
+<!-- ── DREMIO TOOL (vendas) ─────────────────────────────────── -->
+<rect class="box" x="10" y="2040" width="180" height="170" rx="14"/>
+<text class="text-title" x="100" y="2068" font-size="14">consultar_vendas</text>
+<text class="text-body" x="100" y="2092">DremioSalesQueryTool</text>
+<text class="text-body" x="100" y="2114">REST API Dremio</text>
+<text class="text-body" x="100" y="2136">Tabela: fSales</text>
+<text class="text-body" x="100" y="2158">retorna DataFrame</text>
+
+<!-- ── DREMIO TOOL (delivery) ──────────────────────────────── -->
+<rect class="box" x="200" y="2040" width="180" height="170" rx="14"/>
+<text class="text-title" x="290" y="2068" font-size="14">consultar_delivery</text>
+<text class="text-body" x="290" y="2092">DremioDeliveryQueryTool</text>
+<text class="text-body" x="290" y="2114">REST API Dremio</text>
+<text class="text-body" x="290" y="2136">Tabela: fSalesDelivery</text>
+<text class="text-body" x="290" y="2158">retorna DataFrame</text>
+
+<!-- ── DREMIO TOOL (pagamentos) ────────────────────────────── -->
+<rect class="box" x="390" y="2040" width="180" height="170" rx="14"/>
+<text class="text-title" x="480" y="2060" font-size="13">consultar_formas</text>
+<text class="text-title" x="480" y="2078" font-size="13">_pagamento</text>
+<text class="text-body" x="480" y="2100">DremioPaymentQueryTool</text>
+<text class="text-body" x="480" y="2122">REST API Dremio</text>
+<text class="text-body" x="480" y="2144">fFormasPagamento</text>
+<text class="text-body" x="480" y="2166">retorna DataFrame</text>
 
 <!-- ── MYSQL TOOL ──────────────────────────────────────────── -->
-<rect class="box" x="300" y="2040" width="220" height="160" rx="14"/>
-<text class="text-title" x="410" y="2068" font-size="15">consultar_compras</text>
-<text class="text-body" x="410" y="2094">MySQLPurchasesQueryTool</text>
-<text class="text-body" x="410" y="2115">Conector MySQL</text>
-<text class="text-body" x="410" y="2136">retorna DataFrame</text>
+<rect class="box" x="580" y="2040" width="180" height="170" rx="14"/>
+<text class="text-title" x="670" y="2068" font-size="14">consultar_compras</text>
+<text class="text-body" x="670" y="2092">MySQLPurchasesQueryTool</text>
+<text class="text-body" x="670" y="2114">Conector MySQL</text>
+<text class="text-body" x="670" y="2136">retorna DataFrame</text>
 
 <!-- ── RAG TOOL ────────────────────────────────────────────── -->
-<rect class="box" x="820" y="2040" width="540" height="160" rx="14"/>
-<text class="text-title" x="1090" y="2068">consultar_documentos</text>
-<text class="text-body" x="1090" y="2094">RAGDocumentQueryTool</text>
-<text class="text-body" x="1090" y="2115">Chroma similarity_search(k=5)</text>
-<text class="text-body" x="1090" y="2136">vectorstore/ — disco persistente</text>
+<rect class="box" x="820" y="2040" width="540" height="170" rx="14"/>
+<text class="text-title" x="1090" y="2073">consultar_documentos</text>
+<text class="text-body" x="1090" y="2100">RAGDocumentQueryTool</text>
+<text class="text-body" x="1090" y="2123">Chroma similarity_search(k=5)</text>
+<text class="text-body" x="1090" y="2146">vectorstore/ — disco persistente</text>
 
 <!-- Setas convergentes para pos-processamento -->
-<line class="line" x1="130" y1="2200" x2="700" y2="2320"/>
-<line class="line" x1="400" y1="2200" x2="700" y2="2320"/>
-<line class="line" x1="1090" y1="2200" x2="700" y2="2320"/>
+<line class="line" x1="100" y1="2210" x2="700" y2="2340"/>
+<line class="line" x1="290" y1="2210" x2="700" y2="2340"/>
+<line class="line" x1="480" y1="2210" x2="700" y2="2340"/>
+<line class="line" x1="670" y1="2210" x2="700" y2="2340"/>
+<line class="line" x1="1090" y1="2210" x2="700" y2="2340"/>
 
 <!-- ── POS PROCESSAMENTO ──────────────────────────────────── -->
-<rect class="box" x="300" y="2320" width="800" height="160" rx="14"/>
-<text class="text-title" x="700" y="2355">chains.py — Pos-processamento</text>
-<text class="text-body" x="700" y="2385">Salva historico atualizado no Redis</text>
-<text class="text-body" x="700" y="2410">Retorna resposta formatada</text>
+<rect class="box" x="300" y="2340" width="800" height="160" rx="14"/>
+<text class="text-title" x="700" y="2375">chains.py — Pos-processamento</text>
+<text class="text-body" x="700" y="2405">Salva historico atualizado no Redis</text>
+<text class="text-body" x="700" y="2430">Retorna resposta formatada</text>
 
-<line class="line-purple" x1="700" y1="2480" x2="700" y2="2530"/>
+<line class="line-purple" x1="700" y1="2500" x2="700" y2="2550"/>
 
 <!-- ── ENVIO ──────────────────────────────────────────────── -->
-<rect class="box" x="300" y="2530" width="800" height="140" rx="14"/>
-<text class="text-title" x="700" y="2565">integrations/evolution_api.py</text>
-<text class="text-body" x="700" y="2595">send_whatsapp_message()</text>
-<text class="text-body" x="700" y="2620">POST — Evolution API — WhatsApp</text>
+<rect class="box" x="300" y="2550" width="800" height="140" rx="14"/>
+<text class="text-title" x="700" y="2585">integrations/evolution_api.py</text>
+<text class="text-body" x="700" y="2615">send_whatsapp_message()</text>
+<text class="text-body" x="700" y="2640">POST — Evolution API — WhatsApp</text>
 
-<line class="line" x1="700" y1="2670" x2="700" y2="2720"/>
+<line class="line" x1="700" y1="2690" x2="700" y2="2740"/>
 
 <!-- ── USUARIO FINAL ───────────────────────────────────────── -->
-<rect class="box" x="300" y="2720" width="800" height="90" rx="14"/>
-<text class="text-title" x="700" y="2755">Usuario WhatsApp</text>
-<text class="text-body" x="700" y="2785">"R$ 45.230,00 em janeiro" / "RH: Joao Silva — joao@empresa.com"</text>
+<rect class="box" x="300" y="2740" width="800" height="90" rx="14"/>
+<text class="text-title" x="700" y="2775">Usuario WhatsApp</text>
+<text class="text-body" x="700" y="2805">"R$ 45.230,00 em janeiro" / "RH: Joao Silva — joao@empresa.com"</text>
 
 </svg>
