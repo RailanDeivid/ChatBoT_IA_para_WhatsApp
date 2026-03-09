@@ -483,16 +483,61 @@ O bot transcreve automaticamente mensagens de áudio antes de enviá-las ao agen
 ### `consultar_vendas` — Agente SQL → Dremio
 Usada para perguntas sobre faturamento, receita e desempenho de vendas.
 
+Tabela: `views."AI_AGENTS"."fSales"`
+
 | Coluna | Tipo | Descrição |
 |---|---|---|
-| `codigo_casa` | TEXT | Nome do estabelecimento |
+| `casa_ajustado` | TEXT | Nome do estabelecimento |
+| `alavanca` | TEXT | Vertical/segmento (Bar, Restaurante, Iraja) |
 | `data_evento` | DATE | Data da venda |
+| `hora_item` | FLOAT | Hora do item (06:00 a 05:59) |
 | `descricao_produto` | TEXT | Nome do produto vendido |
 | `quantidade` | FLOAT | Quantidade vendida |
 | `valor_produto` | DOUBLE | Valor unitário |
 | `nome_funcionario` | TEXT | Nome do funcionário |
 | `valor_liquido_final` | DOUBLE | Valor líquido final (use para totais) |
+| `desconto_total` | FLOAT | Desconto total aplicado |
 | `distribuicao_pessoas` | FLOAT | Somar para obter Fluxo de clientes |
+| `ticket_medio` | — | Não é coluna — calcular: `SUM(valor_liquido_final) / SUM(distribuicao_pessoas)` |
+
+### `consultar_delivery` — Agente SQL → Dremio
+Usada para perguntas sobre pedidos delivery, faturamento delivery e plataformas (iFood, Rappi, etc.).
+
+Tabela: `views."AI_AGENTS"."fSalesDelivery"`
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `casa_ajustado` | TEXT | Nome do estabelecimento |
+| `alavanca` | TEXT | Vertical/segmento (Bar, Restaurante, Iraja) |
+| `data_evento` | DATE | Data do pedido delivery |
+| `hora_item` | FLOAT | Hora do item (06:00 a 05:59) |
+| `codigo_produto` | TEXT | Código do produto |
+| `descricao_produto` | TEXT | Nome do produto vendido |
+| `quantidade` | FLOAT | Quantidade de itens vendidos |
+| `valor_produto` | DOUBLE | Valor unitário |
+| `valor_venda` | DOUBLE | Valor de venda antes de descontos |
+| `desconto_produto` | FLOAT | Desconto aplicado no produto |
+| `desconto_total` | FLOAT | Desconto total aplicado no pedido |
+| `nome_funcionario` | TEXT | Canal/plataforma do pedido (IFOOD, RAPPI, APP PROPRIO, TERMINAL) |
+| `valor_conta` | DOUBLE | Valor total da conta/pedido |
+| `valor_liquido_final` | DOUBLE | Valor líquido final (use para totais) |
+| `distribuicao_pessoas` | FLOAT | Somar para obter Fluxo de clientes |
+| `ticket_medio` | — | Não é coluna — calcular: `SUM(valor_liquido_final) / SUM(distribuicao_pessoas)` |
+
+### `consultar_formas_pagamento` — Agente SQL → Dremio
+Usada para perguntas sobre mix de pagamentos e participação de cada forma (dinheiro, cartão, pix, etc.).
+
+Tabela: `views."AI_AGENTS"."fFormasPagamento"`
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `cnpj_casa` | TEXT | CNPJ do estabelecimento |
+| `casa_ajustado` | TEXT | Nome do estabelecimento |
+| `alavanca` | TEXT | Vertical/segmento (Bar, Restaurante, Iraja) |
+| `data` | DATE | Data do registro |
+| `descricao_forma_pagamento` | TEXT | Nome da forma de pagamento (VISA_CREDITO, DINHEIRO, PIX, etc.) |
+| `pessoas` | FLOAT | Número de pessoas |
+| `vl_recebido` | DOUBLE | Valor bruto recebido nessa forma de pagamento (use para totais) |
 
 ### `consultar_compras` — Agente SQL → MySQL
 Usada para perguntas sobre pedidos de compra e fornecedores.

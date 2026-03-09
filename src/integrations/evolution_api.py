@@ -11,6 +11,7 @@ from src.config import (
 logger = logging.getLogger(__name__)
 
 
+
 def send_whatsapp_message(number: str, text: str) -> str | None:
     """
     Envia mensagem de texto via Evolution API.

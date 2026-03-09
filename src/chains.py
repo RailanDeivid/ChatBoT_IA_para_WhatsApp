@@ -106,12 +106,12 @@ def _build_invoke_input(message: str, history, sender_name: str) -> dict:
     if sender_name and is_first_message:
         sender_context = (
             f"PRIMEIRO CONTATO. Nome do usuario no WhatsApp: {sender_name}. "
-            f"Cumprimente-o pelo nome e apresente-se como NINOIA antes de responder."
+            f"Se for uma saudacao, responda APENAS com: 'Ola, {sender_name}! NINOIA, assistente interno da empresa. Como posso ajudar voce hoje?' — sem listar capacidades."
         )
     elif is_first_message:
         sender_context = (
             "PRIMEIRO CONTATO. Usuario sem nome cadastrado. "
-            "Cumprimente-o e apresente-se como NINOIA antes de responder."
+            "Se for uma saudacao, responda APENAS com: 'Ola! NINOIA, assistente interno da empresa. Como posso ajudar voce hoje?' — sem listar capacidades."
         )
     elif sender_name:
         sender_context = f"Nome do usuario no WhatsApp: {sender_name}."
