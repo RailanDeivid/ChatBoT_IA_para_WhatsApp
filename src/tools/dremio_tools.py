@@ -117,6 +117,51 @@ class DremioDeliveryQueryTool(BaseTool):
         return await loop.run_in_executor(None, self._run, query)
 
 
+class DremioEstornosQueryTool(BaseTool):
+    name: str = "consultar_estornos"
+    description: str = (
+        "Use EXCLUSIVAMENTE para perguntas sobre ESTORNOS, cancelamentos ou devoluções de produtos. "
+        "Sempre agrupar as querys para trazer um resultado mais limpo e direto. "
+        "Executa SQL no Dremio. Tabela: views.\"AI_AGENTS\".\"fEstornos\". "
+        "Colunas disponíveis: "
+        "casa_ajustado (TEXT, código do estabelecimento é o nome da CASA), "
+        "alavanca (TEXT, vertical/segmento do estabelecimento. Valores: Bar, Restaurante, iraja), "
+        "data_evento (TIMESTAMP, data e hora do estorno — use CAST(data_evento AS DATE) para filtrar por data), "
+        "codigo_produto (INT, código do produto estornado), "
+        "descricao_produto (TEXT, nome do produto estornado), "
+        "quantidade (FLOAT, quantidade estornada), "
+        "valor_produto (DOUBLE, valor total do estorno — USE SUM(valor_produto) para totalizar), "
+        "descricao_motivo_estorno (TEXT, motivo do estorno — USE para agrupar e contar total de estornos por motivo: GROUP BY descricao_motivo_estorno), "
+        "perda (INT, indica se houve perda: 1 = sim, 0 = não), "
+        "tipo_estorno (TEXT, tipo do estorno — ex: COM FATURAMENTO), "
+        "nome_cliente (TEXT, identificação do cliente), "
+        "nome_funcionario (TEXT, nome do funcionário que realizou o estorno), "
+        "nome_usuario_funcionario (TEXT, login do funcionário). "
+        + _CODIGO_CASA_HINT
+        + "SINTAXE DE DATAS no Dremio: use DATE_SUB(CURRENT_DATE, 1) (ontem), "
+        "CURRENT_DATE - INTERVAL '7' DAY (últimos 7 dias), "
+        "DATE_TRUNC('month', CURRENT_DATE) (início do mês). "
+        "NUNCA use CURRENT_DATE - INTERVAL '1 day' nem CURRENT_DATE - 1. "
+        "OBRIGATÓRIO: SEMPRE gere SQL com sintaxe 100% válida para Dremio. "
+        "Input: query SQL válida para Dremio."
+    )
+
+    def _run(self, query: str) -> str:
+        query = strip_markdown(query)
+        logger.info("Executando query Dremio (estornos): %s", query)
+        try:
+            df = client(query)
+            if df.empty:
+                return "Nenhum resultado encontrado."
+            logger.info("Query OK — %d linhas retornadas.", len(df))
+            return df.to_string(index=False)
+        except Exception as e:
+            logger.error("ERRO Dremio (estornos): %s: %s", type(e).__name__, e)
+            return f"Erro ao consultar Dremio (estornos): {str(e)}"
+
+    async def _arun(self, query: str) -> str:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._run, query)
 
 
 class DremioPaymentQueryTool(BaseTool):

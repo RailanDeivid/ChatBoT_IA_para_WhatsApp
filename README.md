@@ -58,7 +58,7 @@ whatsapp-agent/
 │   │   ├── dremio.py               # Conector REST API Dremio → DataFrame
 │   │   └── mysql.py                # Conector MySQL → DataFrame (lazy pool)
 │   ├── tools/
-│   │   ├── dremio_tools.py         # Tool LangChain: consultar_vendas (Dremio)
+│   │   ├── dremio_tools.py         # Tools LangChain: consultar_vendas, consultar_delivery, consultar_formas_pagamento, consultar_estornos (Dremio)
 │   │   ├── mysql_tools.py          # Tool LangChain: consultar_compras (MySQL)
 │   │   ├── rag_tool.py             # Tool LangChain: consultar_documentos (Chroma)
 │   │   ├── utils.py                # strip_markdown — remove blocos sql do output do agente
@@ -96,7 +96,7 @@ Dremio+MySQL Chroma       [Agente RAG] sem ferramentas
 
 | Rota | Quando aciona | Ferramentas |
 |---|---|---|
-| `sql` | Vendas, faturamento, delivery, formas de pagamento, compras, pedidos, SSS, ticket médio | `consultar_vendas` (Dremio) + `consultar_delivery` (Dremio) + `consultar_formas_pagamento` (Dremio) + `consultar_compras` (MySQL) |
+| `sql` | Vendas, faturamento, delivery, formas de pagamento, estornos, compras, pedidos, SSS, ticket médio | `consultar_vendas` (Dremio) + `consultar_delivery` (Dremio) + `consultar_formas_pagamento` (Dremio) + `consultar_estornos` (Dremio) + `consultar_compras` (MySQL) |
 | `docs` | Políticas, organograma, contatos, emails, ramais, quem procurar | `consultar_documentos` (Chroma) |
 | `ambos` | Pergunta envolve dados numéricos E documentos ao mesmo tempo | Executa Agente SQL + Agente RAG em sequência e combina as respostas |
 | `geral` | Saudações, agradecimentos, perguntas fora do escopo | Nenhuma — LLM chamado diretamente (sem ReAct, sem ferramentas) |
@@ -120,7 +120,7 @@ Todos os serviços possuem **health checks** configurados. O `bot` e a `evolutio
 
 | Banco | Função |
 |---|---|
-| Dremio | Dados de vendas — `views."AI_AGENTS"."fSales"`, `views."AI_AGENTS"."fSalesDelivery"` e `views."AI_AGENTS"."fFormasPagamento"` |
+| Dremio | Dados de vendas — `views."AI_AGENTS"."fSales"`, `views."AI_AGENTS"."fSalesDelivery"`, `views."AI_AGENTS"."fFormasPagamento"` e `views."AI_AGENTS"."fEstornos"` |
 | MySQL | Dados de compras — tabela `` `tabela_compras` `` |
 
 **Volumes persistentes:**
@@ -538,6 +538,27 @@ Tabela: `views."AI_AGENTS"."fFormasPagamento"`
 | `descricao_forma_pagamento` | TEXT | Nome da forma de pagamento (VISA_CREDITO, DINHEIRO, PIX, etc.) |
 | `pessoas` | FLOAT | Número de pessoas |
 | `vl_recebido` | DOUBLE | Valor bruto recebido nessa forma de pagamento (use para totais) |
+
+### `consultar_estornos` — Agente SQL → Dremio
+Usada para perguntas sobre estornos, cancelamentos ou devoluções de produtos.
+
+Tabela: `views."AI_AGENTS"."fEstornos"`
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `casa_ajustado` | TEXT | Nome do estabelecimento |
+| `alavanca` | TEXT | Vertical/segmento (Bar, Restaurante, Iraja) |
+| `data_evento` | TIMESTAMP | Data e hora do estorno — usar `CAST(data_evento AS DATE)` para filtrar por data |
+| `codigo_produto` | INT | Código do produto estornado |
+| `descricao_produto` | TEXT | Nome do produto estornado |
+| `quantidade` | FLOAT | Quantidade estornada |
+| `valor_produto` | DOUBLE | Valor total do estorno — usar `SUM(valor_produto)` para totalizar |
+| `descricao_motivo_estorno` | TEXT | Motivo do estorno — usar `GROUP BY` para agrupar por motivo |
+| `perda` | INT | Indica se houve perda: `1` = sim, `0` = não |
+| `tipo_estorno` | TEXT | Tipo do estorno (ex: COM FATURAMENTO) |
+| `nome_cliente` | TEXT | Identificação do cliente |
+| `nome_funcionario` | TEXT | Nome do funcionário que realizou o estorno |
+| `nome_usuario_funcionario` | TEXT | Login do funcionário |
 
 ### `consultar_compras` — Agente SQL → MySQL
 Usada para perguntas sobre pedidos de compra e fornecedores.
