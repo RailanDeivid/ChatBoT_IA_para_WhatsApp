@@ -10,3 +10,4 @@
 /vectorstore/
 
 *access.db
+.claude
