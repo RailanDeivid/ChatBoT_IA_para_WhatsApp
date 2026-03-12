@@ -18,7 +18,7 @@ from src.config import (
 )
 from src.memory import get_session_history
 from src.prompts import react_prompt, rag_prompt, router_prompt, general_prompt
-from src.tools.dremio_tools import DremioSalesQueryTool, DremioDeliveryQueryTool, DremioPaymentQueryTool, DremioEstornosQueryTool
+from src.tools.dremio_tools import DremioSalesQueryTool, DremioDeliveryQueryTool, DremioPaymentQueryTool, DremioEstornosQueryTool, DremioMetasQueryTool
 from src.tools.mysql_tools import MySQLPurchasesQueryTool
 from src.tools.rag_tool import RAGDocumentQueryTool
 
@@ -90,7 +90,7 @@ def _get_sql_executor() -> AgentExecutor:
         with _sql_executor_lock:
             if _sql_executor is None:
                 logger.info("Inicializando agente SQL...")
-                tools = [DremioSalesQueryTool(), DremioDeliveryQueryTool(), DremioPaymentQueryTool(), DremioEstornosQueryTool(), MySQLPurchasesQueryTool()]  # , DremioForecastTool() 
+                tools = [DremioSalesQueryTool(), DremioDeliveryQueryTool(), DremioPaymentQueryTool(), DremioEstornosQueryTool(), DremioMetasQueryTool(), MySQLPurchasesQueryTool()]
                 agent = create_react_agent(llm=_get_model(), tools=tools, prompt=react_prompt)
                 _sql_executor = AgentExecutor(
                     agent=agent,
@@ -242,9 +242,10 @@ def _run_general_response(message: str, session_id: str, sender_name: str) -> st
         return "Olá! Como posso ajudar?"
 
 
-def _classify_intent(message: str) -> str:
+def _classify_intent(message: str, history_text: str = "") -> str:
     try:
-        result = _get_model().invoke(router_prompt.format(input=message))
+        history_section = f"Historico recente:\n{history_text}\n" if history_text else ""
+        result = _get_model().invoke(router_prompt.format(input=message, history=history_section))
         category = result.content.strip().lower()
         if category not in ("sql", "docs", "ambos", "geral"):
             logger.warning("Router retornou categoria invalida '%s', usando 'sql'", category)
@@ -278,7 +279,15 @@ def route_and_invoke(message: str, session_id: str, sender_name: str = "") -> st
         return cached
 
     _metric_inc("requests_total")
-    category = _classify_intent(message)
+    history = get_session_history(session_id)
+    history_text = ""
+    if history.messages:
+        lines = []
+        for msg in history.messages[-4:]:
+            role = "Usuario" if msg.type == "human" else "Assistente"
+            lines.append(f"{role}: {msg.content}")
+        history_text = "\n".join(lines)
+    category = _classify_intent(message, history_text)
     logger.info("Intencao classificada como '%s' para: %.80s", category, message)
     _metric_inc(f"category:{category}")
 
@@ -307,7 +316,7 @@ def route_and_invoke(message: str, session_id: str, sender_name: str = "") -> st
     else:  # geral
         response = _run_general_response(message, session_id, sender_name)
 
-    if category != "geral":
+    if category != "geral" and not response.startswith("Desculpe"):
         _cache_set(session_id, message, response)
 
     _save_to_history(message, response, session_id)

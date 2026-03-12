@@ -13,6 +13,34 @@
 
 Assistente inteligente integrado ao WhatsApp com arquitetura **multi-agente**: um **Router LLM** classifica cada pergunta e roteia para o **Agente SQL** (GPT-4o + Dremio/MySQL, para dados de vendas e compras), o **Agente RAG** (GPT-4o + Chroma, para documentos internos como políticas, organograma e contatos), ou responde diretamente via **LLM** para saudações e perguntas fora do escopo.
 
+## Índice
+
+- [Demonstração](#perguntas-sobre-compras)
+- [Fluxo Completo — Do WhatsApp à Resposta](#fluxo-completo--do-whatsapp-à-resposta)
+- [Estrutura do projeto](#estrutura-do-projeto)
+- [Arquitetura Multi-Agente](#arquitetura-multi-agente)
+- [Serviços Docker](#serviços-docker)
+- [Controle de Acesso](#controle-de-acesso)
+  - [Comandos admin (via WhatsApp)](#comandos-admin-via-whatsapp)
+- [Gerenciamento de Documentos (RAG)](#gerenciamento-de-documentos-rag)
+- [Suporte a áudio (Whisper)](#suporte-a-áudio-whisper)
+- [Ferramentas dos agentes](#ferramentas-dos-agentes)
+  - [consultar\_vendas](#consultar_vendas--agente-sql--dremio)
+  - [consultar\_delivery](#consultar_delivery--agente-sql--dremio)
+  - [consultar\_formas\_pagamento](#consultar_formas_pagamento--agente-sql--dremio)
+  - [consultar\_estornos](#consultar_estornos--agente-sql--dremio)
+  - [consultar\_metas](#consultar_metas--agente-sql--dremio)
+  - [consultar\_compras](#consultar_compras--agente-sql--mysql)
+  - [consultar\_documentos](#consultar_documentos--agente-rag--chroma)
+- [Configuração (.env)](#configuração-env)
+- [Subir o projeto](#subir-o-projeto)
+- [Logs de startup esperados](#logs-de-startup-esperados)
+- [Personalidade e regras dos agentes](#personalidade-e-regras-dos-agentes)
+- [Modelos OpenAI compatíveis](#modelos-openai-compatíveis)
+- [Custo por interação (estimativa)](#custo-por-interação-estimativa)
+
+---
+
 ## Perguntas sobre Compras
 ### Interação por Texto :
 
@@ -69,7 +97,7 @@ whatsapp-agent/
 │   │   ├── dremio.py               # Conector REST API Dremio → DataFrame
 │   │   └── mysql.py                # Conector MySQL → DataFrame (lazy pool)
 │   ├── tools/
-│   │   ├── dremio_tools.py         # Tools LangChain: consultar_vendas, consultar_delivery, consultar_formas_pagamento, consultar_estornos (Dremio)
+│   │   ├── dremio_tools.py         # Tools LangChain: consultar_vendas, consultar_delivery, consultar_formas_pagamento, consultar_estornos, consultar_metas (Dremio)
 │   │   ├── mysql_tools.py          # Tool LangChain: consultar_compras (MySQL)
 │   │   ├── rag_tool.py             # Tool LangChain: consultar_documentos (Chroma)
 │   │   ├── utils.py                # strip_markdown — remove blocos sql do output do agente
@@ -107,7 +135,7 @@ Dremio+MySQL Chroma       [Agente RAG] sem ferramentas
 
 | Rota | Quando aciona | Ferramentas |
 |---|---|---|
-| `sql` | Vendas, faturamento, delivery, formas de pagamento, estornos, compras, pedidos, SSS, ticket médio | `consultar_vendas` (Dremio) + `consultar_delivery` (Dremio) + `consultar_formas_pagamento` (Dremio) + `consultar_estornos` (Dremio) + `consultar_compras` (MySQL) |
+| `sql` | Vendas, faturamento, delivery, formas de pagamento, estornos, metas, orçamento, compras, pedidos, SSS, ticket médio | `consultar_vendas` (Dremio) + `consultar_delivery` (Dremio) + `consultar_formas_pagamento` (Dremio) + `consultar_estornos` (Dremio) + `consultar_metas` (Dremio) + `consultar_compras` (MySQL) |
 | `docs` | Políticas, organograma, contatos, emails, ramais, quem procurar | `consultar_documentos` (Chroma) |
 | `ambos` | Pergunta envolve dados numéricos E documentos ao mesmo tempo | Executa Agente SQL + Agente RAG em sequência e combina as respostas |
 | `geral` | Saudações, agradecimentos, perguntas fora do escopo | Nenhuma — LLM chamado diretamente (sem ReAct, sem ferramentas) |
@@ -131,7 +159,7 @@ Todos os serviços possuem **health checks** configurados. O `bot` e a `evolutio
 
 | Banco | Função |
 |---|---|
-| Dremio | Dados de vendas — `views."AI_AGENTS"."fSales"`, `views."AI_AGENTS"."fSalesDelivery"`, `views."AI_AGENTS"."fFormasPagamento"` e `views."AI_AGENTS"."fEstornos"` |
+| Dremio | Dados de vendas — `views."AI_AGENTS"."fSales"`, `views."AI_AGENTS"."fSalesDelivery"`, `views."AI_AGENTS"."fFormasPagamento"`, `views."AI_AGENTS"."fEstornos"` e `views."AI_AGENTS"."dMetas_Casas"` |
 | MySQL | Dados de compras — tabela `` `tabela_compras` `` |
 
 **Volumes persistentes:**
@@ -570,6 +598,23 @@ Tabela: `views."AI_AGENTS"."fEstornos"`
 | `nome_cliente` | TEXT | Identificação do cliente |
 | `nome_funcionario` | TEXT | Nome do funcionário que realizou o estorno |
 | `nome_usuario_funcionario` | TEXT | Login do funcionário |
+
+### `consultar_metas` — Agente SQL → Dremio
+Usada para perguntas sobre metas, orçamento, atingimento de meta, vendas vs meta e fluxo vs meta.
+
+Tabela: `views."AI_AGENTS"."dMetas_Casas"`
+
+> **Atenção:** colunas com espaço no nome devem ser referenciadas com aspas duplas no SQL: `"RECEITA META"`, `"META FLUXO"`.
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `DATA` | TIMESTAMP | Data da meta — usar `CAST(DATA AS DATE)` para filtrar por data |
+| `"RECEITA META"` | FLOAT | Meta diária de faturamento/receita — usar `SUM("RECEITA META")` para totalizar |
+| `"META FLUXO"` | FLOAT | Meta diária de fluxo de pessoas — usar `SUM("META FLUXO")` para totalizar |
+| `casa_ajustado` | TEXT | Nome completo do estabelecimento |
+| `alavanca` | TEXT | Vertical/segmento (Bar, Restaurante, Iraja) |
+
+**Para vendas vs meta:** a tool recebe uma CTE que junta `fSales` + `dMetas_Casas` numa única query, calculando realizado, meta e % de atingimento.
 
 ### `consultar_compras` — Agente SQL → MySQL
 Usada para perguntas sobre pedidos de compra e fornecedores.

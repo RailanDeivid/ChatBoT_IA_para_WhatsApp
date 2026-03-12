@@ -5,7 +5,7 @@ from langchain.tools import BaseTool
 
 from src.connectors.dremio import client
 from src.tools.fantasia_abreviacao import ABREVIACAO_TO_FANTASIA
-from src.tools.utils import strip_markdown
+from src.tools.utils import strip_markdown, format_df
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class DremioSalesQueryTool(BaseTool):
         "casa_ajustado (TEXT, código do estabelecimento é o nome da CASA), "
         "alavanca (TEXT, vertical/segmento do estabelecimento. Use para agrupar ou filtrar vendas por alavanca (tambem chamada de vertical). Valores: Bar, Restaurante, iraja), "
         "data_evento (DATE, data da venda), "
-        "hora_item (FLOAT, hora do item, Use para agrupar por horário e sempre retorne com primeira hora sendo 06:00 e última sendo 05:59. Como calcular: Se o usuario informar uma data específica, filtre a data e depois traga as o valor_liquido_final por hora), "
+        "hora_item (FLOAT, hora do item. Use para agrupar por horário. OBRIGATÓRIO: sempre ordene usando ORDER BY CASE WHEN hora_item < 6 THEN hora_item + 24 ELSE hora_item END para que a sequência comece em 06:00 e termine em 05:00 do dia seguinte), "
         "descricao_produto (TEXT, nome do produto vendido), "
         "quantidade (FLOAT, quantidade vendida), "
         "valor_produto (DOUBLE, valor unitário do produto), "
@@ -60,7 +60,7 @@ class DremioSalesQueryTool(BaseTool):
             if df.empty:
                 return "Nenhum resultado encontrado."
             logger.info("Query OK — %d linhas retornadas.", len(df))
-            return df.to_string(index=False)
+            return format_df(df)
         except Exception as e:
             logger.error("ERRO Dremio: %s: %s", type(e).__name__, e)
             return f"Erro ao consultar Dremio (vendas): {str(e)}"
@@ -80,7 +80,7 @@ class DremioDeliveryQueryTool(BaseTool):
         "casa_ajustado (TEXT, código do estabelecimento é o nome da CASA), "
         "alavanca (TEXT, vertical/segmento do estabelecimento. Use para agrupar ou filtrar vendas por alavanca (tambem chamada de vertical). Valores: Bar, Restaurante, iraja), "
         "data_evento (DATE, data do pedido delivery), "
-        "hora_item (FLOAT, hora do item, Use para agrupar por horário e sempre retorne com primeira hora sendo 06:00 e última sendo 05:59. Como calcular: Se o usuario informar uma data específica, filtre a data e depois traga as o valor_liquido_final por hora), "
+        "hora_item (FLOAT, hora do item. Use para agrupar por horário. OBRIGATÓRIO: sempre ordene usando ORDER BY CASE WHEN hora_item < 6 THEN hora_item + 24 ELSE hora_item END para que a sequência comece em 06:00 e termine em 05:00 do dia seguinte), "
         "codigo_produto (TEXT, código do produto), "
         "descricao_produto (TEXT, nome do produto vendido), "
         "quantidade (FLOAT, quantidade de itens vendidos), "
@@ -113,7 +113,7 @@ class DremioDeliveryQueryTool(BaseTool):
             if df.empty:
                 return "Nenhum resultado encontrado."
             logger.info("Query OK — %d linhas retornadas.", len(df))
-            return df.to_string(index=False)
+            return format_df(df)
         except Exception as e:
             logger.error("ERRO Dremio (delivery): %s: %s", type(e).__name__, e)
             return f"Erro ao consultar Dremio (delivery): {str(e)}"
@@ -163,10 +163,56 @@ class DremioEstornosQueryTool(BaseTool):
             if df.empty:
                 return "Nenhum resultado encontrado."
             logger.info("Query OK — %d linhas retornadas.", len(df))
-            return df.to_string(index=False)
+            return format_df(df)
         except Exception as e:
             logger.error("ERRO Dremio (estornos): %s: %s", type(e).__name__, e)
             return f"Erro ao consultar Dremio (estornos): {str(e)}"
+
+    async def _arun(self, query: str) -> str:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._run, query)
+
+
+class DremioMetasQueryTool(BaseTool):
+    name: str = "consultar_metas"
+    description: str = (
+        "Use EXCLUSIVAMENTE para perguntas sobre METAS, ORÇAMENTO, BUDGET, RECEITA META, FLUXO META, "
+        "atingimento de meta, vendas vs meta, faturamento vs orçamento, fluxo vs meta. "
+        "Sempre agrupe as queries para trazer resultado limpo e direto. "
+        "Executa SQL no Dremio. Tabela: views.\"AI_AGENTS\".\"dMetas_Casas\". "
+        "ATENCAO: colunas com espaco devem ser sempre entre aspas duplas no SQL. "
+        "Colunas disponíveis: "
+        "DATA (TIMESTAMP, data da meta — use CAST(DATA AS DATE) para filtrar por data), "
+        "\"RECEITA META\" (FLOAT, meta diaria de faturamento/receita — use SUM(\"RECEITA META\") para totalizar), "
+        "\"META FLUXO\" (FLOAT, meta diaria de fluxo de pessoas — use SUM(\"META FLUXO\") para totalizar), "
+        "casa_ajustado (TEXT, nome completo do estabelecimento. IMPORTANTE: nesta tabela casa_ajustado contem o nome COMPLETO da casa, diferente da tabela de vendas que usa abreviacao. Use este campo para filtrar ou agrupar por casa), "
+        "alavanca (TEXT, vertical/segmento. Valores: Bar, Restaurante, Iraja — use para filtrar ou agrupar por alavanca/vertical/BU). "
+        "COMO USAR PARA 'VENDAS VS META' OU 'FATURAMENTO VS META': use uma CTE juntando fSales e dMetas_Casas. "
+        "Exemplo de padrao CTE para vs meta por casa: "
+        "WITH vendas AS (SELECT casa_ajustado, SUM(valor_liquido_final) AS realizado FROM views.\"AI_AGENTS\".\"fSales\" WHERE CAST(data_evento AS DATE) BETWEEN 'AAAA-MM-DD' AND 'AAAA-MM-DD' GROUP BY casa_ajustado), "
+        "metas AS (SELECT casa_ajustado, SUM(\"RECEITA META\") AS meta FROM views.\"AI_AGENTS\".\"dMetas_Casas\" WHERE CAST(DATA AS DATE) BETWEEN 'AAAA-MM-DD' AND 'AAAA-MM-DD' GROUP BY casa_ajustado) "
+        "SELECT v.casa_ajustado, v.realizado, m.meta, ROUND(v.realizado / m.meta * 100, 2) AS atingimento_pct FROM vendas v JOIN metas m ON v.casa_ajustado = m.casa_ajustado ORDER BY atingimento_pct DESC. "
+        "Para fluxo vs meta: substitua valor_liquido_final por SUM(distribuicao_pessoas) e \"RECEITA META\" por \"META FLUXO\". "
+        "SINTAXE DE DATAS no Dremio: use DATE_SUB(CURRENT_DATE, 1) (ontem), "
+        "CURRENT_DATE - INTERVAL '7' DAY (últimos 7 dias), "
+        "DATE_TRUNC('month', CURRENT_DATE) (início do mês). "
+        "NUNCA use CURRENT_DATE - INTERVAL '1 day' nem CURRENT_DATE - 1. "
+        "OBRIGATÓRIO: SEMPRE gere SQL com sintaxe 100% válida para Dremio. "
+        "Input: query SQL válida para Dremio."
+    )
+
+    def _run(self, query: str) -> str:
+        query = strip_markdown(query)
+        logger.info("Executando query Dremio (metas): %s", query)
+        try:
+            df = client(query)
+            if df.empty:
+                return "Nenhum resultado encontrado."
+            logger.info("Query OK — %d linhas retornadas.", len(df))
+            return format_df(df)
+        except Exception as e:
+            logger.error("ERRO Dremio (metas): %s: %s", type(e).__name__, e)
+            return f"Erro ao consultar Dremio (metas): {str(e)}"
 
     async def _arun(self, query: str) -> str:
         loop = asyncio.get_running_loop()
@@ -205,7 +251,7 @@ class DremioPaymentQueryTool(BaseTool):
             if df.empty:
                 return "Nenhum resultado encontrado."
             logger.info("Query OK — %d linhas retornadas.", len(df))
-            return df.to_string(index=False)
+            return format_df(df)
         except Exception as e:
             logger.error("ERRO Dremio (pagamentos): %s: %s", type(e).__name__, e)
             return f"Erro ao consultar Dremio (pagamentos): {str(e)}"
