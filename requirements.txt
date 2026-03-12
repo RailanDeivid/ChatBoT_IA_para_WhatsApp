@@ -36,6 +36,7 @@ mypy_extensions==1.1.0
 mysql-connector-python==9.4.0
 numpy==2.3.2
 pandas==2.2.3
+statsmodels==0.14.6
 openai==1.99.6
 orjson==3.11.1
 packaging==25.0

@@ -8,6 +8,8 @@
 /rag_files/*
 !/rag_files/.gitkeep
 /vectorstore/
-
+/.pytest_cache
 *access.db
 .claude
+
+/docs/

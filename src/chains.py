@@ -90,7 +90,7 @@ def _get_sql_executor() -> AgentExecutor:
         with _sql_executor_lock:
             if _sql_executor is None:
                 logger.info("Inicializando agente SQL...")
-                tools = [DremioSalesQueryTool(), DremioDeliveryQueryTool(), DremioPaymentQueryTool(), DremioEstornosQueryTool(), MySQLPurchasesQueryTool()]
+                tools = [DremioSalesQueryTool(), DremioDeliveryQueryTool(), DremioPaymentQueryTool(), DremioEstornosQueryTool(), MySQLPurchasesQueryTool()]  # , DremioForecastTool() 
                 agent = create_react_agent(llm=_get_model(), tools=tools, prompt=react_prompt)
                 _sql_executor = AgentExecutor(
                     agent=agent,

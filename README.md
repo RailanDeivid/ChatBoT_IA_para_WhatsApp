@@ -1,3 +1,14 @@
+![Python](https://img.shields.io/badge/python-3.13-blue?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
+![LangChain](https://img.shields.io/badge/LangChain-0.3-1C3C3C?logo=langchain&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o-412991?logo=openai&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-compose-2496ED?logo=docker&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-connector-4479A1?logo=mysql&logoColor=white)
+![ChromaDB](https://img.shields.io/badge/ChromaDB-RAG-FF6B35?logo=databricks&logoColor=white)
+![WhatsApp](https://img.shields.io/badge/WhatsApp-Evolution%20API-25D366?logo=whatsapp&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)
+
 # whatsapp-agent
 
 Assistente inteligente integrado ao WhatsApp com arquitetura **multi-agente**: um **Router LLM** classifica cada pergunta e roteia para o **Agente SQL** (GPT-4o + Dremio/MySQL, para dados de vendas e compras), o **Agente RAG** (GPT-4o + Chroma, para documentos internos como políticas, organograma e contatos), ou responde diretamente via **LLM** para saudações e perguntas fora do escopo.
