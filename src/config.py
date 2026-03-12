@@ -39,13 +39,33 @@ DB_NAME     = _require("DB_NAME")
 STRING_CONEXAO = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 # Dremio
-DREMIO_HOST     = _require("DREMIO_HOST")
-DREMIO_USER     = _require("DREMIO_USER")
-DREMIO_PASSWORD = _require("DREMIO_PASSWORD")
+DREMIO_HOST         = _require("DREMIO_HOST")
+DREMIO_USER         = _require("DREMIO_USER")
+DREMIO_PASSWORD     = _require("DREMIO_PASSWORD")
+DREMIO_POLL_INITIAL = int(os.getenv("DREMIO_POLL_INITIAL", "2"))
+DREMIO_POLL_MAX     = int(os.getenv("DREMIO_POLL_MAX", "30"))
 
 # RAG
 RAG_FILES_DIR    = os.getenv("RAG_FILES_DIR", "rag_files")
 VECTOR_STORE_PATH = os.getenv("VECTOR_STORE_PATH", "vectorstore")
+
+# Retry
+RETRY_MAX_ATTEMPTS = int(os.getenv("RETRY_MAX_ATTEMPTS", "3"))
+RETRY_BACKOFF_BASE = float(os.getenv("RETRY_BACKOFF_BASE", "2"))
+
+# Cache de queries
+QUERY_CACHE_TTL = int(os.getenv("QUERY_CACHE_TTL", "300"))
+
+# Rate limiting
+RATE_LIMIT_MAX    = int(os.getenv("RATE_LIMIT_MAX", "10"))
+RATE_LIMIT_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+
+# Agentes
+SQL_AGENT_MAX_ITERATIONS     = int(os.getenv("SQL_AGENT_MAX_ITERATIONS", "8"))
+SQL_AGENT_MAX_EXECUTION_TIME = int(os.getenv("SQL_AGENT_MAX_EXECUTION_TIME", "600"))
+RAG_AGENT_MAX_ITERATIONS     = int(os.getenv("RAG_AGENT_MAX_ITERATIONS", "4"))
+RAG_AGENT_MAX_EXECUTION_TIME = int(os.getenv("RAG_AGENT_MAX_EXECUTION_TIME", "60"))
+CONVERSATION_MAX_HISTORY     = int(os.getenv("CONVERSATION_MAX_HISTORY", "5"))
 
 # Controle de acesso
 SQLITE_PATH = os.getenv("SQLITE_PATH", "data/access.db")
@@ -55,7 +75,6 @@ UNAUTHORIZED_MESSAGE = os.getenv(
     "Olá! Você não está autorizado a usar este assistente. Entre em contato com um administrador.",
 )
 
-# Usuários seed — lidos do .env, nunca hardcoded no código
 # Formato: TELEFONE:NOME:SETOR:CASA:admin|user (separados por vírgula)
 def _parse_seed_users(raw: str) -> list[dict]:
     users = []

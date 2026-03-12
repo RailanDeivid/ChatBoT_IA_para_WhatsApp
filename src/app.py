@@ -1,12 +1,38 @@
 import logging
+from contextlib import asynccontextmanager
+from typing import Optional
 
-from fastapi import FastAPI, Request
+import redis.asyncio as redis
+from fastapi import FastAPI
+from pydantic import BaseModel
 
 from src.message_buffer import buffer_message
 from src.integrations.evolution_api import get_media_base64, send_whatsapp_message
 from src.integrations.transcribe import transcribe_audio
 from src.access_control import init_db, is_authorized, is_admin, authorize, revoke, unblock, delete_user, list_users, get_user_nome
-from src.config import UNAUTHORIZED_MESSAGE
+from src.config import UNAUTHORIZED_MESSAGE, REDIS_URL, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW
+
+
+class _EvolutionKey(BaseModel):
+    fromMe: Optional[bool] = False
+    remoteJid: Optional[str] = None
+
+
+class _EvolutionMessage(BaseModel):
+    conversation: Optional[str] = None
+    extendedTextMessage: Optional[dict] = None
+    audioMessage: Optional[dict] = None
+
+
+class _EvolutionData(BaseModel):
+    key: Optional[_EvolutionKey] = None
+    pushName: Optional[str] = ""
+    message: Optional[_EvolutionMessage] = None
+
+
+class EvolutionWebhookPayload(BaseModel):
+    event: Optional[str] = ""
+    data: Optional[_EvolutionData] = None
 
 logging.basicConfig(
     level=logging.INFO,
@@ -15,43 +41,57 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
-
-
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     init_db()
     logger.info("Banco de controle de acesso inicializado.")
+    yield
+
+app = FastAPI(lifespan=lifespan)
+_redis = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+
+
+async def _is_rate_limited(phone: str) -> bool:
+    key = f"rl:{phone}"
+    count = await _redis.incr(key)
+    if count == 1:
+        await _redis.expire(key, RATE_LIMIT_WINDOW)
+    return count > RATE_LIMIT_MAX
+
+
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
 
 
+@app.get("/metrics")
+async def metrics():
+    keys = await _redis.keys("metrics:*")
+    if not keys:
+        return {}
+    values = await _redis.mget(*keys)
+    return {k.removeprefix("metrics:"): int(v) for k, v in zip(keys, values) if v}
+
+
 @app.post("/webhook")
-async def webhook(request: Request):
-    try:
-        data = await request.json()
-    except Exception:
+async def webhook(payload: EvolutionWebhookPayload):
+    if payload.event != "messages.upsert" or not payload.data:
         return {"status": "ok"}
 
-    event_type = data.get("event", "")
+    data = payload.data
+    key = data.key or _EvolutionKey()
 
-    if event_type != "messages.upsert":
+    if key.fromMe:
         return {"status": "ok"}
 
-    msg_data = data.get("data", {})
+    chat_id = key.remoteJid
+    sender_name = data.pushName or ""
+    msg_content = data.message or _EvolutionMessage()
 
-    if msg_data.get("key", {}).get("fromMe"):
-        return {"status": "ok"}
-
-    chat_id = msg_data.get("key", {}).get("remoteJid")
-    sender_name = msg_data.get("pushName", "")
-
-    msg_content = msg_data.get("message", {})
     message = (
-        msg_content.get("conversation")
-        or msg_content.get("extendedTextMessage", {}).get("text")
+        msg_content.conversation
+        or (msg_content.extendedTextMessage or {}).get("text")
     )
 
     # Ignora grupos
@@ -67,6 +107,12 @@ async def webhook(request: Request):
         send_whatsapp_message(chat_id, UNAUTHORIZED_MESSAGE)
         return {"status": "ok"}
 
+    # --- Rate limiting ---
+    if await _is_rate_limited(phone):
+        logger.warning("Rate limit atingido para %s", phone)
+        send_whatsapp_message(chat_id, "Você está enviando mensagens muito rapidamente. Aguarde um momento.")
+        return {"status": "ok"}
+
     # --- Comandos admin ---
     if message and message.startswith("/"):
         if is_admin(phone):
@@ -75,13 +121,12 @@ async def webhook(request: Request):
                 send_whatsapp_message(chat_id, response)
                 return {"status": "ok"}
         else:
-            # Usuário normal tentando usar comando — bloqueia sem revelar nada
             send_whatsapp_message(chat_id, "Comando não reconhecido.")
             return {"status": "ok"}
 
     # Se não tem texto mas tem áudio, transcreve com Whisper
-    if not message and msg_content.get("audioMessage"):
-        audio_b64 = get_media_base64(msg_data.get("key", {}))
+    if not message and msg_content.audioMessage:
+        audio_b64 = get_media_base64(key.model_dump())
         if audio_b64:
             message = transcribe_audio(audio_b64)
             logger.info("Áudio transcrito de %s: %.80s", sender_name or chat_id, message)

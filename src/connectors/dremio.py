@@ -1,13 +1,28 @@
 import logging
 import threading
 import time
+from typing import TypeVar, Callable
 
 import pandas as pd
 import requests
 
-from src.config import DREMIO_HOST, DREMIO_USER, DREMIO_PASSWORD
+from src.config import DREMIO_HOST, DREMIO_USER, DREMIO_PASSWORD, RETRY_MAX_ATTEMPTS, RETRY_BACKOFF_BASE, DREMIO_POLL_INITIAL, DREMIO_POLL_MAX
 
 logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
+
+
+def _with_retry(fn: Callable[[], _T], label: str) -> _T:
+    for attempt in range(1, RETRY_MAX_ATTEMPTS + 1):
+        try:
+            return fn()
+        except Exception as exc:
+            if attempt == RETRY_MAX_ATTEMPTS:
+                raise
+            wait = RETRY_BACKOFF_BASE ** attempt
+            logger.warning("%s falhou (tentativa %d/%d): %s — retry em %.0fs", label, attempt, RETRY_MAX_ATTEMPTS, exc, wait)
+            time.sleep(wait)
 
 _token_cache: dict[str, tuple[str, float]] = {}
 _token_lock = threading.Lock()
@@ -23,13 +38,16 @@ def _get_token(host: str, username: str, password: str) -> str:
             if time.time() - created_at < _TOKEN_TTL:
                 return token
 
-        login_res = requests.post(
-            f"http://{host}/apiv2/login",
-            json={"userName": username, "password": password},
-            timeout=10,
-        )
-        login_res.raise_for_status()
-        token = login_res.json()["token"]
+        def _do_login():
+            res = requests.post(
+                f"http://{host}/apiv2/login",
+                json={"userName": username, "password": password},
+                timeout=10,
+            )
+            res.raise_for_status()
+            return res.json()["token"]
+
+        token = _with_retry(_do_login, "Login Dremio")
         _token_cache[cache_key] = (token, time.time())
         return token
 
@@ -42,20 +60,18 @@ def client(sql: str) -> pd.DataFrame:
     base = f"http://{DREMIO_HOST}"
 
     logger.info("Submetendo query ao Dremio...")
-    sql_res = requests.post(
-        f"{base}/api/v3/sql",
-        headers=headers,
-        json={"sql": sql},
-        timeout=30,
-    )
-    sql_res.raise_for_status()
-    job_id = sql_res.json()["id"]
+    def _do_submit():
+        res = requests.post(f"{base}/api/v3/sql", headers=headers, json={"sql": sql}, timeout=30)
+        res.raise_for_status()
+        return res.json()["id"]
+
+    job_id = _with_retry(_do_submit, "Submit query Dremio")
     logger.info("Job criado: %s. Aguardando conclusão...", job_id)
 
     t_start = time.time()
     last_state = None
     max_wait = 300
-    poll_interval = 3
+    poll_interval = DREMIO_POLL_INITIAL
 
     while time.time() - t_start < max_wait:
         try:
@@ -67,6 +83,7 @@ def client(sql: str) -> pd.DataFrame:
             elapsed = int(time.time() - t_start)
             logger.warning("Timeout ao checar status (%ds) — tentando novamente...", elapsed)
             time.sleep(poll_interval)
+            poll_interval = min(poll_interval * 2, DREMIO_POLL_MAX)
             continue
 
         if job_state != last_state:
@@ -80,6 +97,7 @@ def client(sql: str) -> pd.DataFrame:
             raise RuntimeError(f"Job Dremio falhou ({job_state}): {error}")
 
         time.sleep(poll_interval)
+        poll_interval = min(poll_interval * 2, DREMIO_POLL_MAX)
     else:
         raise TimeoutError(f"Timeout aguardando job Dremio ({max_wait}s)")
 

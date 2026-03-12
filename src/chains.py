@@ -1,12 +1,21 @@
 import logging
 import re
 import threading
+import time
 from datetime import datetime
 
 from langchain.agents import create_react_agent, AgentExecutor
 from langchain_openai import ChatOpenAI
 
-from src.config import OPENAI_MODEL_NAME, OPENAI_MODEL_TEMPERATURE
+import redis
+
+from src.config import (
+    OPENAI_MODEL_NAME, OPENAI_MODEL_TEMPERATURE,
+    SQL_AGENT_MAX_ITERATIONS, SQL_AGENT_MAX_EXECUTION_TIME,
+    RAG_AGENT_MAX_ITERATIONS, RAG_AGENT_MAX_EXECUTION_TIME,
+    CONVERSATION_MAX_HISTORY,
+    REDIS_URL, QUERY_CACHE_TTL,
+)
 from src.memory import get_session_history
 from src.prompts import react_prompt, rag_prompt, router_prompt, general_prompt
 from src.tools.dremio_tools import DremioSalesQueryTool, DremioDeliveryQueryTool, DremioPaymentQueryTool, DremioEstornosQueryTool
@@ -15,8 +24,42 @@ from src.tools.rag_tool import RAGDocumentQueryTool
 
 logger = logging.getLogger(__name__)
 
-_MAX_HISTORY = 5
-_DATE_WITHOUT_YEAR = re.compile(r'\b(\d{1,2}/\d{1,2})(?!/\d)')
+_MAX_HISTORY = CONVERSATION_MAX_HISTORY
+_redis = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+
+
+def _cache_get(session_id: str, message: str) -> str | None:
+    key = f"cache:{session_id}:{message.lower().strip()}"
+    try:
+        return _redis.get(key)
+    except Exception:
+        return None
+
+
+def _cache_set(session_id: str, message: str, response: str) -> None:
+    key = f"cache:{session_id}:{message.lower().strip()}"
+    try:
+        _redis.setex(key, QUERY_CACHE_TTL, response)
+    except Exception:
+        pass
+
+
+def _metric_inc(key: str) -> None:
+    try:
+        _redis.incr(f"metrics:{key}")
+    except Exception:
+        pass
+
+
+def _latency_bucket(elapsed: float) -> str:
+    if elapsed < 5:
+        return "<5s"
+    if elapsed < 30:
+        return "5-30s"
+    if elapsed < 60:
+        return "30-60s"
+    return ">60s"
+_DATE_WITHOUT_YEAR = re.compile(r'(?<![/\d])(\d{1,2}/\d{1,2})(?![\d/])')
 _DATE_YEAR_EXTRA_DIGITS = re.compile(r'\b(\d{1,2}/\d{1,2}/)(\d{5,})\b')
 
 _model: ChatOpenAI | None = None
@@ -57,8 +100,8 @@ def _get_sql_executor() -> AgentExecutor:
                         "Se nao precisar usar ferramentas, responda com: "
                         "Final Answer: [sua resposta]. Nunca responda sem usar esse formato."
                     ),
-                    max_iterations=8,
-                    max_execution_time=600,
+                    max_iterations=SQL_AGENT_MAX_ITERATIONS,
+                    max_execution_time=SQL_AGENT_MAX_EXECUTION_TIME,
                 )
                 logger.info("Agente SQL pronto.")
     return _sql_executor
@@ -80,17 +123,29 @@ def _get_rag_executor() -> AgentExecutor:
                         "Se nao encontrar a informacao, responda com: "
                         "Final Answer: Nao encontrei essa informacao nos documentos disponíveis."
                     ),
-                    max_iterations=4,
-                    max_execution_time=60,
+                    max_iterations=RAG_AGENT_MAX_ITERATIONS,
+                    max_execution_time=RAG_AGENT_MAX_EXECUTION_TIME,
                 )
                 logger.info("Agente RAG pronto.")
     return _rag_executor
 
 
 def _complete_dates(message: str) -> str:
-    year = datetime.now().year
+    now = datetime.now()
     message = _DATE_YEAR_EXTRA_DIGITS.sub(lambda m: m.group(1) + m.group(2)[:4], message)
-    return _DATE_WITHOUT_YEAR.sub(rf'\1/{year}', message)
+
+    def _fill_year(match: re.Match) -> str:
+        day, month = match.group(1).split('/')
+        year = now.year
+        try:
+            candidate = datetime(year, int(month), int(day))
+            if (candidate - now).days > 30:
+                year -= 1
+        except ValueError:
+            pass
+        return f"{match.group(1)}/{year}"
+
+    return _DATE_WITHOUT_YEAR.sub(_fill_year, message)
 
 
 def _build_invoke_input(message: str, history, sender_name: str) -> dict:
@@ -215,19 +270,45 @@ def invoke_rag_agent(message: str, session_id: str, sender_name: str = "") -> st
 
 def route_and_invoke(message: str, session_id: str, sender_name: str = "") -> str:
     message = _complete_dates(message)
+
+    cached = _cache_get(session_id, message)
+    if cached:
+        logger.info("Cache hit para %s: %.80s", session_id, message)
+        _metric_inc("cache_hits")
+        return cached
+
+    _metric_inc("requests_total")
     category = _classify_intent(message)
     logger.info("Intencao classificada como '%s' para: %.80s", category, message)
+    _metric_inc(f"category:{category}")
+
+    t_start = time.time()
 
     if category == "sql":
         response = _run_sql_agent(message, session_id, sender_name)
+        elapsed = time.time() - t_start
+        logger.info("Agente SQL respondeu em %.1fs", elapsed)
+        _metric_inc(f"latency:sql:{_latency_bucket(elapsed)}")
+        if response.startswith("Desculpe"):
+            _metric_inc("errors:sql")
     elif category == "docs":
         response = _run_rag_agent(message, session_id, sender_name)
+        elapsed = time.time() - t_start
+        logger.info("Agente RAG respondeu em %.1fs", elapsed)
+        _metric_inc(f"latency:rag:{_latency_bucket(elapsed)}")
+        if response.startswith("Desculpe") or "Nao encontrei" in response:
+            _metric_inc("errors:rag")
     elif category == "ambos":
         sql_resp = _run_sql_agent(message, session_id, sender_name)
         docs_resp = _run_rag_agent(message, session_id, sender_name)
         response = f"{sql_resp}\n\n---\n\n{docs_resp}"
+        elapsed = time.time() - t_start
+        logger.info("Agente AMBOS respondeu em %.1fs", elapsed)
     else:  # geral
         response = _run_general_response(message, session_id, sender_name)
+
+    if category != "geral":
+        _cache_set(session_id, message, response)
 
     _save_to_history(message, response, session_id)
     return response

@@ -1,10 +1,11 @@
 import logging
 import threading
+import time
 
 import pandas as pd
 from mysql.connector.pooling import MySQLConnectionPool
 
-from src.config import DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
+from src.config import DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, RETRY_MAX_ATTEMPTS, RETRY_BACKOFF_BASE
 
 logger = logging.getLogger(__name__)
 
@@ -34,18 +35,24 @@ def _get_pool() -> MySQLConnectionPool:
 def client(sql: str) -> pd.DataFrame:
     """
     Executa uma query SQL no MySQL e retorna um DataFrame.
-    Usa connection pooling para eficiência.
-    A conexão é sempre devolvida ao pool, mesmo em caso de erro.
+    Usa connection pooling e retry com backoff exponencial.
     """
-    db = _get_pool().get_connection()
-    cursor = None
-    try:
-        cursor = db.cursor()
-        cursor.execute(sql)
-        rows = cursor.fetchall()
-        columns = [desc[0] for desc in cursor.description] if cursor.description else []
-        return pd.DataFrame(rows, columns=columns)
-    finally:
-        if cursor is not None:
-            cursor.close()
-        db.close()
+    for attempt in range(1, RETRY_MAX_ATTEMPTS + 1):
+        db = _get_pool().get_connection()
+        cursor = None
+        try:
+            cursor = db.cursor()
+            cursor.execute(sql)
+            rows = cursor.fetchall()
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            return pd.DataFrame(rows, columns=columns)
+        except Exception as exc:
+            if attempt == RETRY_MAX_ATTEMPTS:
+                raise
+            wait = RETRY_BACKOFF_BASE ** attempt
+            logger.warning("MySQL falhou (tentativa %d/%d): %s — retry em %.0fs", attempt, RETRY_MAX_ATTEMPTS, exc, wait)
+            time.sleep(wait)
+        finally:
+            if cursor is not None:
+                cursor.close()
+            db.close()

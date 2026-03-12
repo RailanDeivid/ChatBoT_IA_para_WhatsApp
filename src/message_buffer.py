@@ -60,4 +60,5 @@ async def handle_debounce(chat_id: str, sender_name: str = "") -> None:
         logger.exception("ERRO no debounce para %s", chat_id)
 
     finally:
-        debounce_tasks.pop(chat_id, None)
+        if debounce_tasks.get(chat_id) is asyncio.current_task():
+            debounce_tasks.pop(chat_id, None)
