@@ -1,10 +1,14 @@
 import asyncio
 import logging
+import re
+
 import redis.asyncio as redis
 
 from src.config import REDIS_URL, BUFFER_KEY_SUFIX, DEBOUNCE_SECONDS, BUFFER_TTL
-from src.integrations.evolution_api import send_whatsapp_message
+from src.integrations.evolution_api import send_whatsapp_message, send_whatsapp_image
 from src.chains import route_and_invoke
+
+_CHART_RE = re.compile(r'\[CHART:(chart:[a-f0-9]+)\|caption:([^\]]*)\]')
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +51,27 @@ async def handle_debounce(chat_id: str, sender_name: str = "") -> None:
 
             logger.info("Resposta do agente para %s: %.100s", chat_id, ai_response)
 
-            await loop.run_in_executor(
-                None, lambda: send_whatsapp_message(number=chat_id, text=ai_response)
-            )
+            chart_match = _CHART_RE.search(ai_response)
+            if chart_match:
+                chart_key = chart_match.group(1)
+                caption = chart_match.group(2)
+                text_response = _CHART_RE.sub('', ai_response).strip()
+                if text_response:
+                    await loop.run_in_executor(
+                        None, lambda: send_whatsapp_message(number=chat_id, text=text_response)
+                    )
+                b64 = await redis_client.get(chart_key)
+                if b64:
+                    await redis_client.delete(chart_key)
+                    await loop.run_in_executor(
+                        None, lambda: send_whatsapp_image(number=chat_id, b64=b64, caption=caption)
+                    )
+                else:
+                    logger.warning("Chave do grafico nao encontrada no Redis: %s", chart_key)
+            else:
+                await loop.run_in_executor(
+                    None, lambda: send_whatsapp_message(number=chat_id, text=ai_response)
+                )
 
         await redis_client.delete(buffer_key)
 

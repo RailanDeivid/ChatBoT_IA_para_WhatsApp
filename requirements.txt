@@ -34,6 +34,8 @@ marshmallow==3.26.1
 multidict==6.6.3
 mypy_extensions==1.1.0
 mysql-connector-python==9.4.0
+matplotlib==3.10.8
+seaborn==0.13.2
 numpy==2.3.2
 pandas==2.2.3
 statsmodels==0.14.6
