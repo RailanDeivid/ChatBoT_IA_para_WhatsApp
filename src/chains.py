@@ -22,6 +22,7 @@ from src.tools.dremio_tools import DremioSalesQueryTool, DremioDeliveryQueryTool
 from src.tools.mysql_tools import MySQLPurchasesQueryTool
 from src.tools.rag_tool import RAGDocumentQueryTool
 from src.tools.chart_tool import ChartTool
+from src.tools.excel_tool import ExcelExportTool
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ def _get_sql_executor() -> AgentExecutor:
         with _sql_executor_lock:
             if _sql_executor is None:
                 logger.info("Inicializando agente SQL...")
-                tools = [DremioSalesQueryTool(), DremioDeliveryQueryTool(), DremioPaymentQueryTool(), DremioEstornosQueryTool(), DremioMetasQueryTool(), MySQLPurchasesQueryTool(), ChartTool()]
+                tools = [DremioSalesQueryTool(), DremioDeliveryQueryTool(), DremioPaymentQueryTool(), DremioEstornosQueryTool(), DremioMetasQueryTool(), MySQLPurchasesQueryTool(), ChartTool(), ExcelExportTool()]
                 agent = create_react_agent(llm=_get_model(), tools=tools, prompt=react_prompt)
                 _sql_executor = AgentExecutor(
                     agent=agent,

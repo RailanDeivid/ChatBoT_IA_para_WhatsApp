@@ -63,6 +63,32 @@ def send_whatsapp_image(number: str, b64: str, caption: str = "") -> None:
         logger.error("Falha ao enviar imagem para %s: %s", number, e)
 
 
+def send_whatsapp_document(number: str, b64: str, filename: str) -> None:
+    """Envia arquivo (documento) via Evolution API usando base64."""
+    url = f"{EVOLUTION_API_URL}/message/sendMedia/{EVOLUTION_INSTANCE_NAME}"
+    headers = {
+        "apikey": EVOLUTION_AUTHENTICATION_API_KEY,
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "number": number,
+        "mediatype": "document",
+        "mimetype": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "media": b64,
+        "fileName": filename,
+        "caption": filename,
+    }
+    try:
+        response = requests.post(url=url, json=payload, headers=headers, timeout=30)
+        response.raise_for_status()
+    except requests.exceptions.Timeout:
+        logger.error("Timeout ao enviar documento para %s", number)
+    except requests.exceptions.HTTPError as e:
+        logger.error("Erro HTTP ao enviar documento para %s: %s — %s", number, e.response.status_code, e.response.text)
+    except requests.exceptions.RequestException as e:
+        logger.error("Falha ao enviar documento para %s: %s", number, e)
+
+
 def get_media_base64(message_key: dict) -> str:
     """Baixa mídia (áudio, imagem, etc.) da Evolution API e retorna em base64."""
     url = f"{EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/{EVOLUTION_INSTANCE_NAME}"

@@ -31,6 +31,7 @@ Assistente inteligente integrado ao WhatsApp com arquitetura **multi-agente**: u
   - [consultar\_estornos](#consultar_estornos--agente-sql--dremio)
   - [consultar\_metas](#consultar_metas--agente-sql--dremio)
   - [consultar\_compras](#consultar_compras--agente-sql--mysql)
+  - [exportar\_excel](#exportar_excel--agente-sql--dremiomysql)
   - [consultar\_documentos](#consultar_documentos--agente-rag--chroma)
 - [Configuração (.env)](#configuração-env)
 - [Subir o projeto](#subir-o-projeto)
@@ -99,6 +100,8 @@ whatsapp-agent/
 │   ├── tools/
 │   │   ├── dremio_tools.py         # Tools LangChain: consultar_vendas, consultar_delivery, consultar_formas_pagamento, consultar_estornos, consultar_metas (Dremio)
 │   │   ├── mysql_tools.py          # Tool LangChain: consultar_compras (MySQL)
+│   │   ├── chart_tool.py           # Tool LangChain: gerar_grafico — gráficos PNG via matplotlib/seaborn
+│   │   ├── excel_tool.py           # Tool LangChain: exportar_excel — planilha .xlsx via pandas/openpyxl
 │   │   ├── rag_tool.py             # Tool LangChain: consultar_documentos (Chroma)
 │   │   ├── utils.py                # strip_markdown — remove blocos sql do output do agente
 │   │   └── fantasia_abreviacao.py  # Mapeamento abreviação → nome fantasia do estabelecimento
@@ -135,7 +138,7 @@ Dremio+MySQL Chroma       [Agente RAG] sem ferramentas
 
 | Rota | Quando aciona | Ferramentas |
 |---|---|---|
-| `sql` | Vendas, faturamento, delivery, formas de pagamento, estornos, metas, orçamento, compras, pedidos, SSS, ticket médio | `consultar_vendas` (Dremio) + `consultar_delivery` (Dremio) + `consultar_formas_pagamento` (Dremio) + `consultar_estornos` (Dremio) + `consultar_metas` (Dremio) + `consultar_compras` (MySQL) |
+| `sql` | Vendas, faturamento, delivery, formas de pagamento, estornos, metas, orçamento, compras, pedidos, SSS, ticket médio | `consultar_vendas` (Dremio) + `consultar_delivery` (Dremio) + `consultar_formas_pagamento` (Dremio) + `consultar_estornos` (Dremio) + `consultar_metas` (Dremio) + `consultar_compras` (MySQL) + `gerar_grafico` + `exportar_excel` |
 | `docs` | Políticas, organograma, contatos, emails, ramais, quem procurar | `consultar_documentos` (Chroma) |
 | `ambos` | Pergunta envolve dados numéricos E documentos ao mesmo tempo | Executa Agente SQL + Agente RAG em sequência e combina as respostas |
 | `geral` | Saudações, agradecimentos, perguntas fora do escopo | Nenhuma — LLM chamado diretamente (sem ReAct, sem ferramentas) |
@@ -628,6 +631,39 @@ Usada para perguntas sobre pedidos de compra e fornecedores.
 | `` `Descrição Item` `` | TEXT | Nome do produto comprado |
 | `` `Grupo` `` | TEXT | Grupo do produto |
 | `` `V. Total` `` | DECIMAL | Valor total da compra |
+
+### `exportar_excel` — Agente SQL → Dremio/MySQL
+
+Usada quando o usuário pede explicitamente os dados em formato Excel (`.xlsx`). Funciona em dois cenários:
+
+**Cenário 1 — pedido direto:**
+> "preciso das vendas dia a dia de janeiro das casas X e Y separadas por grupos, em excel"
+→ O agente executa a query e já entrega o arquivo `.xlsx` diretamente.
+
+**Cenário 2 — follow-up após resposta em texto:**
+> (depois de receber a resposta normal) "pode me retornar isso em excel?" / "retorna em planilha"
+→ O agente usa o histórico para reconstruir a query com os mesmos filtros e gera o arquivo.
+
+**Fluxo interno:**
+```
+exportar_excel(sql, nome_arquivo, fonte)
+  → executa query → DataFrame
+  → df.to_excel() via openpyxl → BytesIO
+  → base64 → Redis (TTL 120s)
+  → retorna [EXCEL:excel:UUID|caption:nome.xlsx]
+  → message_buffer detecta marcador
+  → send_whatsapp_document() → Evolution API → WhatsApp
+```
+
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| `sql` | TEXT | Query SQL com todas as colunas desejadas na planilha |
+| `nome_arquivo` | TEXT | Nome do arquivo com datas concretas (ex: `vendas_jan_2026.xlsx`) |
+| `fonte` | TEXT | `dremio` para vendas/delivery/metas, `mysql` para compras |
+
+> A tool pode retornar qualquer número de colunas — diferente de `gerar_grafico`, que exige exatamente 2 colunas. A planilha é gerada com a aba `Dados` e cabeçalhos automáticos.
+
+---
 
 ### `consultar_documentos` — Agente RAG → Chroma
 Usada para perguntas sobre documentos internos da empresa.

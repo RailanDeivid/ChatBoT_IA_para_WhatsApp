@@ -5,10 +5,11 @@ import re
 import redis.asyncio as redis
 
 from src.config import REDIS_URL, BUFFER_KEY_SUFIX, DEBOUNCE_SECONDS, BUFFER_TTL
-from src.integrations.evolution_api import send_whatsapp_message, send_whatsapp_image
+from src.integrations.evolution_api import send_whatsapp_message, send_whatsapp_image, send_whatsapp_document
 from src.chains import route_and_invoke
 
 _CHART_RE = re.compile(r'\[CHART:(chart:[a-f0-9]+)\|caption:([^\]]*)\]')
+_EXCEL_RE = re.compile(r'\[EXCEL:(excel:[a-f0-9]+)\|caption:([^\]]*)\]')
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,8 @@ async def handle_debounce(chat_id: str, sender_name: str = "") -> None:
             logger.info("Resposta do agente para %s: %.100s", chat_id, ai_response)
 
             chart_match = _CHART_RE.search(ai_response)
+            excel_match = _EXCEL_RE.search(ai_response)
+
             if chart_match:
                 chart_key = chart_match.group(1)
                 caption = chart_match.group(2)
@@ -68,6 +71,22 @@ async def handle_debounce(chat_id: str, sender_name: str = "") -> None:
                     )
                 else:
                     logger.warning("Chave do grafico nao encontrada no Redis: %s", chart_key)
+            elif excel_match:
+                excel_key = excel_match.group(1)
+                filename = excel_match.group(2)
+                text_response = _EXCEL_RE.sub('', ai_response).strip()
+                if text_response:
+                    await loop.run_in_executor(
+                        None, lambda: send_whatsapp_message(number=chat_id, text=text_response)
+                    )
+                b64 = await redis_client.get(excel_key)
+                if b64:
+                    await redis_client.delete(excel_key)
+                    await loop.run_in_executor(
+                        None, lambda: send_whatsapp_document(number=chat_id, b64=b64, filename=filename)
+                    )
+                else:
+                    logger.warning("Chave do Excel nao encontrada no Redis: %s", excel_key)
             else:
                 await loop.run_in_executor(
                     None, lambda: send_whatsapp_message(number=chat_id, text=ai_response)

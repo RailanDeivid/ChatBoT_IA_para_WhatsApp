@@ -191,12 +191,13 @@
 <text class="t-label" x="1540" y="1043">docs / ambos</text>
 
 <!-- ─── COLUNA SQL (x=10, w=900, center=460) ─── -->
-<rect class="card-purple" x="10" y="1084" width="900" height="160" rx="14"/>
-<text class="t-head-p" x="460" y="1116">Agente SQL  —  GPT-4o</text>
-<text class="t-sub-p"  x="460" y="1140">ReAct: Thought → Action → Observation → Final Answer</text>
-<text class="t-sub-p"  x="460" y="1160">Ferramentas: Dremio (vendas · delivery · pgto · estornos · metas)  +  MySQL (compras)</text>
-<text class="t-sub-p"  x="460" y="1180">Prompt: confidencialidade · regras SQL Dremio · SSS · datas</text>
-<text class="t-sub-p"  x="460" y="1200">Histórico: últimas 5 mensagens por sessão (Redis)</text>
+<rect class="card-purple" x="10" y="1084" width="900" height="185" rx="14"/>
+<text class="t-head-p" x="460" y="1112">Agente SQL  —  GPT-4o</text>
+<text class="t-sub-p"  x="460" y="1134">ReAct: Thought → Action → Observation → Final Answer</text>
+<text class="t-sub-p"  x="460" y="1153">Ferramentas: Dremio (vendas · delivery · pgto · estornos · metas)</text>
+<text class="t-sub-p"  x="460" y="1171">MySQL (compras)  ·  gerar_grafico  ·  exportar_excel</text>
+<text class="t-sub-p"  x="460" y="1190">Prompt: confidencialidade · regras SQL Dremio · SSS · datas</text>
+<text class="t-sub-p"  x="460" y="1208">Histórico: últimas 5 mensagens por sessão (Redis)</text>
 
 <!-- ─── COLUNA LLM (x=920, w=160, center=1000) ─── -->
 <rect class="card" x="920" y="1084" width="160" height="160" rx="12"/>
@@ -215,7 +216,7 @@
 <text class="t-sub-p"  x="1540" y="1200">Busca semântica  ·  k=5 chunks  ·  vectorstore persistente</text>
 
 <!-- setas agents → tools -->
-<line class="arr" x1="460"  y1="1244" x2="460"  y2="1278"/>
+<line class="arr" x1="460"  y1="1269" x2="460"  y2="1278"/>
 <line class="arr" x1="1540" y1="1244" x2="1540" y2="1278"/>
 <!-- LLM direto vai direto para pos-proc -->
 <path class="arr-d" d="M1000,1244 Q1000,1400 1000,1644" fill="none"/>
@@ -227,65 +228,31 @@
 <!-- ─── 6 SQL Tools (x=12, w=148 each, gap=4) ─── -->
 <!-- 6×148+5×4=908, start x=12, centers: 86·238·390·542·694·846 -->
 
-<!-- vendas — center=86 -->
-<rect class="card-tool" x="12"  y="1282" width="148" height="125" rx="10"/>
-<text class="t-tool"   x="86"  y="1307" style="font-size: 12px">consultar_vendas</text>
-<line x1="22"  y1="1315" x2="150" y2="1315" stroke="#00CC6A" stroke-width="1" opacity="0.4"/>
-<text class="t-tool-s" x="86"  y="1334">REST API Dremio</text>
-<text class="t-tool-s" x="86"  y="1356">fSales</text>
+<!-- ─── SQL Tools box (x=10, w=900, center=460) ─── -->
+<rect class="card-tool" x="10" y="1282" width="900" height="160" rx="12"/>
+<text class="t-tool" x="460" y="1308" style="font-size: 15px">Seleciona e executa a ferramenta adequada</text>
+<line x1="20" y1="1318" x2="900" y2="1318" stroke="#00CC6A" stroke-width="1" opacity="0.4"/>
+<line x1="460" y1="1318" x2="460" y2="1432" stroke="#00CC6A" stroke-width="0.5" opacity="0.3"/>
+<!-- coluna 1 (center=235) -->
+<text class="t-tool-s" x="235" y="1344" style="font-size: 15px">consultar_vendas</text>
+<text class="t-tool-s" x="235" y="1366" style="font-size: 15px">consultar_delivery</text>
+<text class="t-tool-s" x="235" y="1388" style="font-size: 15px">consultar_formas_pagamento</text>
+<text class="t-tool-s" x="235" y="1410" style="font-size: 15px">consultar_estornos</text>
+<!-- coluna 2 (center=685) -->
+<text class="t-tool-s" x="685" y="1344" style="font-size: 15px">consultar_metas</text>
+<text class="t-tool-s" x="685" y="1366" style="font-size: 15px">consultar_compras</text>
+<text class="t-tool-s" x="685" y="1388" style="font-size: 15px">gerar_grafico</text>
+<text class="t-tool-s" x="685" y="1410" style="font-size: 15px">exportar_excel</text>
 
-<!-- delivery — center=238 -->
-<rect class="card-tool" x="164" y="1282" width="148" height="125" rx="10"/>
-<text class="t-tool"   x="238" y="1307" style="font-size: 12px">consultar_delivery</text>
-<line x1="174" y1="1315" x2="302" y2="1315" stroke="#00CC6A" stroke-width="1" opacity="0.4"/>
-<text class="t-tool-s" x="238" y="1334">REST API Dremio</text>
-<text class="t-tool-s" x="238" y="1356">fSalesDelivery</text>
+<!-- ─── RAG Tool box (x=1090, w=900, center=1540) ─── -->
+<rect class="card-tool" x="1090" y="1282" width="900" height="160" rx="12"/>
+<text class="t-tool" x="1540" y="1308" style="font-size: 15px">Seleciona e executa a ferramenta adequada</text>
+<line x1="1100" y1="1318" x2="1980" y2="1318" stroke="#00CC6A" stroke-width="1" opacity="0.4"/>
+<text class="t-tool-s" x="1540" y="1390" style="font-size: 17px">consultar_documentos</text>
 
-<!-- pagamentos — center=390 -->
-<rect class="card-tool" x="316" y="1282" width="148" height="125" rx="10"/>
-<text class="t-tool"   x="390" y="1302" style="font-size: 12px">consultar_formas</text>
-<text class="t-tool"   x="390" y="1316" style="font-size: 12px">_pagamento</text>
-<line x1="326" y1="1323" x2="454" y2="1323" stroke="#00CC6A" stroke-width="1" opacity="0.4"/>
-<text class="t-tool-s" x="390" y="1341">REST API Dremio</text>
-<text class="t-tool-s" x="390" y="1363">fFormasPagamento</text>
-
-<!-- estornos — center=542 -->
-<rect class="card-tool" x="468" y="1282" width="148" height="125" rx="10"/>
-<text class="t-tool"   x="542" y="1307" style="font-size: 12px">consultar_estornos</text>
-<line x1="478" y1="1315" x2="606" y2="1315" stroke="#00CC6A" stroke-width="1" opacity="0.4"/>
-<text class="t-tool-s" x="542" y="1334">REST API Dremio</text>
-<text class="t-tool-s" x="542" y="1356">fEstornos</text>
-
-<!-- metas — center=694 -->
-<rect class="card-tool" x="620" y="1282" width="148" height="125" rx="10"/>
-<text class="t-tool"   x="694" y="1307" style="font-size: 12px">consultar_metas</text>
-<line x1="630" y1="1315" x2="758" y2="1315" stroke="#00CC6A" stroke-width="1" opacity="0.4"/>
-<text class="t-tool-s" x="694" y="1334">REST API Dremio</text>
-<text class="t-tool-s" x="694" y="1356">dMetas_Casas</text>
-
-<!-- compras — center=846 -->
-<rect class="card-tool" x="772" y="1282" width="148" height="125" rx="10"/>
-<text class="t-tool"   x="846" y="1307" style="font-size: 12px">consultar_compras</text>
-<line x1="782" y1="1315" x2="910" y2="1315" stroke="#00CC6A" stroke-width="1" opacity="0.4"/>
-<text class="t-tool-s" x="846" y="1334">Conector MySQL</text>
-<text class="t-tool-s" x="846" y="1356">tabela_compras</text>
-
-<!-- ─── RAG Tool (x=1098, w=884) — center=1540 ─── -->
-<rect class="card-tool" x="1098" y="1282" width="884" height="125" rx="10"/>
-<text class="t-tool"   x="1540" y="1308">consultar_documentos</text>
-<line x1="1108" y1="1316" x2="1972" y2="1316" stroke="#00CC6A" stroke-width="1" opacity="0.4"/>
-<text class="t-tool-s" x="1540" y="1336">RAGDocumentQueryTool</text>
-<text class="t-tool-s" x="1540" y="1356">Chroma  ·  similarity_search(k=5)</text>
-<text class="t-tool-s" x="1540" y="1376">vectorstore/  ·  OpenAI ada-002</text>
-
-<!-- setas tools → pos-proc -->
-<path class="arr-d" d="M86,1407   Q86,1520   1000,1644"  fill="none"/>
-<path class="arr-d" d="M238,1407  Q238,1520  1000,1644"  fill="none"/>
-<path class="arr-d" d="M390,1407  Q390,1520  1000,1644"  fill="none"/>
-<path class="arr-d" d="M542,1407  Q542,1520  1000,1644"  fill="none"/>
-<path class="arr-d" d="M694,1407  Q694,1520  1000,1644"  fill="none"/>
-<path class="arr-d" d="M846,1407  Q846,1520  1000,1644"  fill="none"/>
-<path class="arr-d" d="M1540,1407 Q1540,1540 1000,1644"  fill="none"/>
+<!-- setas tools → pos-proc (bottom y=1442) -->
+<path class="arr-d" d="M460,1442  Q460,1540  1000,1644"  fill="none"/>
+<path class="arr-d" d="M1540,1442 Q1540,1550 1000,1644"  fill="none"/>
 
 <!-- ════════════════════════════════════════════════════
      SEÇÃO 8 — PÓS-PROCESSAMENTO
@@ -300,18 +267,19 @@
 <!-- ════════════════════════════════════════════════════
      SEÇÃO 9 — ENVIO
      ════════════════════════════════════════════════════ -->
-<rect class="card" x="600" y="1768" width="800" height="90" rx="12"/>
-<text class="t-head" x="1000" y="1798">integrations/evolution_api.py</text>
-<text class="t-sub"  x="1000" y="1822">send_whatsapp_message()  →  POST Evolution API  →  WhatsApp</text>
-<text class="t-sub"  x="1000" y="1844">usa EVOLUTION_API_URL + EVOLUTION_INSTANCE_NAME + API_KEY</text>
+<rect class="card" x="600" y="1768" width="800" height="112" rx="12"/>
+<text class="t-head" x="1000" y="1796">integrations/evolution_api.py</text>
+<text class="t-sub"  x="1000" y="1818">send_whatsapp_message()   →  POST Evolution API  →  texto</text>
+<text class="t-sub"  x="1000" y="1838">send_whatsapp_image()     →  POST Evolution API  →  imagem (PNG)</text>
+<text class="t-sub"  x="1000" y="1858">send_whatsapp_document()  →  POST Evolution API  →  arquivo (.xlsx)</text>
 
-<line class="arr" x1="1000" y1="1858" x2="1000" y2="1878"/>
+<line class="arr" x1="1000" y1="1880" x2="1000" y2="1900"/>
 
 <!-- ════════════════════════════════════════════════════
      SEÇÃO 10 — USUÁRIO FINAL
      ════════════════════════════════════════════════════ -->
-<rect class="card" x="600" y="1882" width="800" height="76" rx="12"/>
-<text class="t-head" x="1000" y="1912">Usuario WhatsApp</text>
-<text class="t-sub"  x="1000" y="1936">recebe a resposta no chat</text>
+<rect class="card" x="600" y="1904" width="800" height="76" rx="12"/>
+<text class="t-head" x="1000" y="1934">Usuario WhatsApp</text>
+<text class="t-sub"  x="1000" y="1956">recebe a resposta no chat</text>
 
 </svg>
