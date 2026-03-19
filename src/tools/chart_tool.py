@@ -18,7 +18,7 @@ from langchain.tools import BaseTool
 from src.connectors.dremio import client as dremio_client
 from src.connectors.mysql import client as mysql_client
 from src.config import REDIS_URL
-from src.tools.utils import strip_markdown
+from src.tools.utils import strip_markdown, extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -302,8 +302,10 @@ def _build_pie_chart(df, titulo: str, col_categoria: str, col_valor: str) -> str
 class ChartTool(BaseTool):
     name: str = "gerar_grafico"
     description: str = (
-        "Use SOMENTE quando o usuario pedir EXPLICITAMENTE um grafico, chart ou visualizacao. "
-        "NUNCA use para respostas normais de dados em texto. "
+        "QUANDO USAR: SOMENTE quando o usuario pedir EXPLICITAMENTE um grafico, chart ou visualizacao. "
+        "PALAVRAS-CHAVE que ativam esta ferramenta: grafico, chart, mostre em grafico, quero ver em grafico, "
+        "faz um grafico, me mostra visualmente, pizza, barra, linha (no contexto de grafico). "
+        "NUNCA use para respostas normais de dados em texto — so quando o usuario pedir grafico explicitamente. "
         "Input: JSON com campos: "
         "'sql' (query SQL com EXATAMENTE 2 colunas: categoria e valor numerico agregado), "
         "'titulo' (OBRIGATORIO: use SEMPRE datas concretas — NUNCA 'Ontem', 'Hoje', 'Semana Passada' ou termos vagos. "
@@ -332,9 +334,9 @@ class ChartTool(BaseTool):
     def _run(self, query: str) -> str:
         query = strip_markdown(query)
         try:
-            params = json.loads(query)
-        except json.JSONDecodeError as e:
-            return f"Erro: input deve ser JSON valido. Detalhe: {e}"
+            params = extract_json(query)
+        except (ValueError, Exception) as e:
+            return f"Erro: nao foi possivel interpretar o JSON do grafico. Detalhe: {e}"
 
         sql          = params.get("sql", "").strip()
         titulo       = params.get("titulo", "Grafico")

@@ -192,7 +192,7 @@
 
 <!-- ─── COLUNA SQL (x=10, w=900, center=460) ─── -->
 <rect class="card-purple" x="10" y="1084" width="900" height="185" rx="14"/>
-<text class="t-head-p" x="460" y="1112">Agente SQL  —  GPT-4o</text>
+<text class="t-head-p" x="460" y="1112">Agente SQL  —  Grok (xAI)</text>
 <text class="t-sub-p"  x="460" y="1134">ReAct: Thought → Action → Observation → Final Answer</text>
 <text class="t-sub-p"  x="460" y="1153">Ferramentas: Dremio (vendas · delivery · pgto · estornos · metas)</text>
 <text class="t-sub-p"  x="460" y="1171">MySQL (compras)  ·  gerar_grafico  ·  exportar_excel</text>
@@ -202,14 +202,14 @@
 <!-- ─── COLUNA LLM (x=920, w=160, center=1000) ─── -->
 <rect class="card" x="920" y="1084" width="160" height="160" rx="12"/>
 <text class="t-head" x="1000" y="1114">LLM Direto</text>
-<text class="t-sub"  x="1000" y="1138">GPT-4o</text>
+<text class="t-sub"  x="1000" y="1138">Grok (xAI)</text>
 <text class="t-sub"  x="1000" y="1158">general_prompt</text>
 <text class="t-sub"  x="1000" y="1178">sem ferramentas</text>
 <text class="t-sub"  x="1000" y="1198">resposta direta</text>
 
 <!-- ─── COLUNA RAG (x=1090, w=900, center=1540) ─── -->
 <rect class="card-purple" x="1090" y="1084" width="900" height="160" rx="14"/>
-<text class="t-head-p" x="1540" y="1116">Agente RAG  —  GPT-4o</text>
+<text class="t-head-p" x="1540" y="1116">Agente RAG  —  Grok (xAI)</text>
 <text class="t-sub-p"  x="1540" y="1140">ReAct: Thought → Action → Observation → Final Answer</text>
 <text class="t-sub-p"  x="1540" y="1160">Ferramenta: consultar_documentos (Chroma)</text>
 <text class="t-sub-p"  x="1540" y="1180">Prompt: responder somente com trechos dos documentos</text>

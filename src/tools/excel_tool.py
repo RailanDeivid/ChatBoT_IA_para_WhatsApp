@@ -12,7 +12,7 @@ from langchain.tools import BaseTool
 from src.connectors.dremio import client as dremio_client
 from src.connectors.mysql import client as mysql_client
 from src.config import REDIS_URL
-from src.tools.utils import strip_markdown
+from src.tools.utils import strip_markdown, extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +25,10 @@ _redis = redis_lib.Redis.from_url(REDIS_URL, decode_responses=True)
 class ExcelExportTool(BaseTool):
     name: str = "exportar_excel"
     description: str = (
-        "Use SOMENTE quando o usuario pedir EXPLICITAMENTE os dados em Excel, planilha ou .xlsx. "
-        "NUNCA use para respostas normais de dados em texto. "
+        "QUANDO USAR: SOMENTE quando o usuario pedir EXPLICITAMENTE os dados em Excel, planilha ou .xlsx. "
+        "PALAVRAS-CHAVE que ativam esta ferramenta: excel, planilha, xlsx, exportar, baixar planilha, "
+        "me manda em excel, retorna em excel, quero em planilha, exporta os dados. "
+        "NUNCA use para respostas normais de dados em texto — so quando o usuario pedir excel/planilha explicitamente. "
         "Input: JSON com campos: "
         "'sql' (query SQL que retorna os dados desejados — pode ter quantas colunas forem necessarias, "
         "sem limite de colunas como nas outras ferramentas), "
@@ -53,9 +55,9 @@ class ExcelExportTool(BaseTool):
     def _run(self, query: str) -> str:
         query = strip_markdown(query)
         try:
-            params = json.loads(query)
-        except json.JSONDecodeError as e:
-            return f"Erro: input deve ser JSON valido. Detalhe: {e}"
+            params = extract_json(query)
+        except (ValueError, Exception) as e:
+            return f"Erro: nao foi possivel interpretar o JSON da planilha. Detalhe: {e}"
 
         sql          = params.get("sql", "").strip()
         nome_arquivo = params.get("nome_arquivo", "dados.xlsx").strip()

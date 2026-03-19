@@ -4,9 +4,13 @@ import logging
 
 from openai import OpenAI
 
+from src.config import WHISPER_API_KEY
+
 logger = logging.getLogger(__name__)
 
-_client = OpenAI()
+# OpenAI Whisper direto — só para transcrição de áudio
+# O texto transcrito é enviado ao Grok para processamento
+_client = OpenAI(api_key=WHISPER_API_KEY)
 
 
 def transcribe_audio(audio_base64: str) -> str:
@@ -15,11 +19,11 @@ def transcribe_audio(audio_base64: str) -> str:
     buf = io.BytesIO(audio_bytes)
     buf.name = "audio.ogg"
 
-    logger.info("Transcrevendo áudio (%d bytes)...", len(audio_bytes))
+    logger.info("Transcrevendo audio (%d bytes) via OpenAI Whisper...", len(audio_bytes))
     transcript = _client.audio.transcriptions.create(
         model="whisper-1",
         file=buf,
         language="pt",
     )
-    logger.info("Transcrição concluída: %.100s", transcript.text)
+    logger.info("Transcricao concluida: %.100s", transcript.text)
     return transcript.text

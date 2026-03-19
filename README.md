@@ -1,7 +1,8 @@
 ![Python](https://img.shields.io/badge/python-3.13-blue?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
 ![LangChain](https://img.shields.io/badge/LangChain-0.3-1C3C3C?logo=langchain&logoColor=white)
-![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o-412991?logo=openai&logoColor=white)
+![Grok](https://img.shields.io/badge/xAI-Grok--4.1--fast-000000?logo=x&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI-Whisper-412991?logo=openai&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-compose-2496ED?logo=docker&logoColor=white)
 ![MySQL](https://img.shields.io/badge/MySQL-connector-4479A1?logo=mysql&logoColor=white)
@@ -11,7 +12,7 @@
 
 # whatsapp-agent
 
-Assistente inteligente integrado ao WhatsApp com arquitetura **multi-agente**: um **Router LLM** classifica cada pergunta e roteia para o **Agente SQL** (GPT-4o + Dremio/MySQL, para dados de vendas e compras), o **Agente RAG** (GPT-4o + Chroma, para documentos internos como políticas, organograma e contatos), ou responde diretamente via **LLM** para saudações e perguntas fora do escopo.
+Assistente inteligente integrado ao WhatsApp com arquitetura **multi-agente**: um **Router LLM** classifica cada pergunta e roteia para o **Agente SQL** (Grok xAI via OpenRouter + Dremio/MySQL, para dados de vendas e compras), o **Agente RAG** (Grok xAI via OpenRouter + Chroma, para documentos internos como políticas, organograma e contatos), ou responde diretamente via **LLM** para saudações e perguntas fora do escopo. Áudios são transcritos via **OpenAI Whisper** antes de chegarem aos agentes.
 
 ## Índice
 
@@ -126,12 +127,13 @@ whatsapp-agent/
 mensagem → route_and_invoke()
                 │
          [Router LLM]         ← classifica a intenção: sql / docs / ambos / geral
+         Grok xAI via OpenRouter
                 │
      ┌──────────┼──────────┬──────────┐
    "sql"      "docs"    "ambos"    "geral"
      │           │           │           │
 [Agente SQL] [Agente RAG] [Agente SQL] [LLM direto]
-GPT-4o       GPT-4o       +            GPT-4o
+Grok (xAI)   Grok (xAI)   +            Grok (xAI)
 Dremio+MySQL Chroma       [Agente RAG] sem ferramentas
                           (sequencial)
 ```
@@ -492,7 +494,7 @@ rm -rf ./vectorstore
 docker compose up -d
 ```
 
-> O custo de embedding (OpenAI) ocorre apenas na indexação. Perguntas subsequentes não geram custo de embedding — apenas o custo normal de tokens do GPT-4o.
+> O custo de embedding (OpenAI `text-embedding-ada-002`) ocorre apenas na indexação. Perguntas subsequentes não geram custo de embedding — apenas o custo normal de tokens do Grok via OpenRouter.
 
 ---
 
@@ -691,10 +693,14 @@ EVOLUTION_API_URL=http://evolution-api:8080
 EVOLUTION_INSTANCE_NAME=instace_name
 AUTHENTICATION_API_KEY=sua_api_key
 
-# OpenAI
-OPENAI_API_KEY=token
-OPENAI_MODEL_NAME=gpt-4o
+# OpenRouter (Grok — modelo principal dos agentes)
+ROUTER_API_KEY=sk-or-v1-...seu_token_openrouter...
+ROUTER_BASE_URL=https://openrouter.ai/api/v1
+ROUTER_MODEL_NAME=x-ai/grok-4.1-fast
 OPENAI_MODEL_TEMPERATURE=0.3
+
+# Whisper — mesma chave do OpenRouter ou chave OpenAI separada (só para transcrição de áudio)
+WHISPER_API_KEY=sk-or-v1-...seu_token_openrouter...
 
 # Redis — Bot
 BOT_REDIS_URI=redis://redis:6379/0
@@ -893,19 +899,19 @@ O comportamento de cada agente está definido em [src/prompts.py](src/prompts.py
 
 ---
 
-## Modelos OpenAI compatíveis
+## Modelos compatíveis
 
-### Agentes (chat / ReAct)
+### Agentes (chat / ReAct) — via OpenRouter
 
-Use modelos da família **chat** (não reasoning):
+O projeto usa **Grok (xAI)** via [OpenRouter](https://openrouter.ai) como LLM principal. O modelo é configurado em `ROUTER_MODEL_NAME` no `.env`.
 
 | Modelo | Indicado para |
 |---|---|
-| `gpt-4o` | Produção — melhor aderência ao formato ReAct e geração de SQL |
-| `gpt-4-turbo` | Alternativa ao gpt-4o |
-| `gpt-4o-mini` | Testes — mais rápido/barato, menor confiabilidade no ReAct |
+| `x-ai/grok-4.1-fast` | Produção — padrão atual, rápido e com boa aderência ao formato ReAct |
+| `x-ai/grok-4` | Alternativa com mais capacidade de raciocínio |
+| `x-ai/grok-3-mini-beta` | Testes — mais barato, menor confiabilidade no ReAct |
 
-> **Evite modelos da série `o`** (`o1`, `o3`, `o4-mini`) — não suportam o parâmetro `temperature` e não seguem o formato ReAct do LangChain.
+> O OpenRouter permite trocar o modelo sem alterar código — basta mudar `ROUTER_MODEL_NAME`. Outros modelos disponíveis no OpenRouter (ex: Claude, GPT-4o) também são compatíveis via `langchain-openai`.
 
 ### Embeddings (RAG)
 
@@ -913,7 +919,7 @@ Use modelos da família **chat** (não reasoning):
 |---|---|
 | `text-embedding-ada-002` | Padrão do `OpenAIEmbeddings()` — indexação e busca no Chroma |
 
-> Custo de indexação: ~$0.0001 por 1000 tokens (~centavos por PDF).
+> Custo de indexação: ~$0.0001 por 1000 tokens (~centavos por PDF). O embedding usa OpenAI diretamente (não passa pelo OpenRouter).
 
 ### Transcrição de áudio (Whisper)
 
@@ -921,7 +927,7 @@ Use modelos da família **chat** (não reasoning):
 |---|---|
 | `whisper-1` | Único modelo disponível — usado em `integrations/transcribe.py` |
 
-> O modelo é fixo (`whisper-1`). Custo aproximado: **$0.006/minuto** de áudio (R$0,035 por minuto).
+> O modelo é fixo (`whisper-1`). Custo aproximado: **$0.006/minuto** de áudio (R$0,035 por minuto). Configurado via `WHISPER_API_KEY` — pode usar a mesma chave do OpenRouter ou uma chave OpenAI separada.
 
 ---
 
@@ -931,15 +937,15 @@ Cada mensagem respondida consome tokens em até duas etapas: **Router LLM** (cla
 
 | Tipo de interação | Custo (USD) | Custo (BRL) |
 |---|---|---|
-| Router (classificação) | ~$0,0005 | ~R$0,003 |
-| Mensagem SQL simples | ~$0,002 | ~R$0,012 |
-| Mensagem SQL com histórico ativo | ~$0,004 | ~R$0,023 |
-| Mensagem RAG (busca em documentos) | ~$0,002 | ~R$0,012 |
-| Mensagem geral (saudação/fora do escopo) | ~$0,0003 | ~R$0,002 |
-| Áudio de 30s + agente | ~$0,005 | ~R$0,029 |
+| Router (classificação) | ~$0,0001 | ~R$0,001 |
+| Mensagem SQL simples | ~$0,001 | ~R$0,006 |
+| Mensagem SQL com histórico ativo | ~$0,002 | ~R$0,012 |
+| Mensagem RAG (busca em documentos) | ~$0,001 | ~R$0,006 |
+| Mensagem geral (saudação/fora do escopo) | ~$0,0001 | ~R$0,001 |
+| Áudio de 30s + agente | ~$0,004 | ~R$0,024 |
 | Indexação de PDF (~5 páginas) | ~$0,001 (uma vez) | ~R$0,006 |
 
-> Preços GPT-4o: $2,50/1M tokens input · $10,00/1M tokens output · Whisper: $0,006/min · Embeddings: $0,0001/1k tokens
+> Preços Grok 4.1-fast via OpenRouter: ~$0,20/1M tokens input · ~$0,50/1M tokens output · Whisper: $0,006/min · Embeddings (OpenAI): $0,0001/1k tokens
 
 ### Exemplo real de custo
 
@@ -947,9 +953,9 @@ Cada mensagem respondida consome tokens em até duas etapas: **Router LLM** (cla
 
 | Componente | Tokens | Custo (USD) | Custo (BRL) |
 |---|---|---|---|
-| Router — classificação | ~80 tokens | ~$0,0002 | ~R$0,001 |
-| Input — prompt + pergunta + resultado do banco | 362 tokens | ~$0,001 | ~R$0,005 |
-| Output — Thought + SQL gerado + Final Answer | 117 tokens | ~$0,001 | ~R$0,007 |
-| **Total** | **~559 tokens** | **~$0,002** | **~R$0,013** |
+| Router — classificação | ~80 tokens | ~$0,00002 | ~R$0,0001 |
+| Input — prompt + pergunta + resultado do banco | 362 tokens | ~$0,00007 | ~R$0,0004 |
+| Output — Thought + SQL gerado + Final Answer | 117 tokens | ~$0,00006 | ~R$0,0004 |
+| **Total** | **~559 tokens** | **~$0,0001** | **~R$0,001** |
 
-> Valores medidos colando cada componente no [OpenAI Tokenizer](https://platform.openai.com/tokenizer) e somando os totais de input e output separadamente.
+> Valores estimados com base no preço do `x-ai/grok-4.1-fast` via OpenRouter. Consulte [openrouter.ai/models](https://openrouter.ai/models) para preços atualizados.

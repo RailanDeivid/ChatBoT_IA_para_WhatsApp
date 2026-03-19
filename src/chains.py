@@ -2,6 +2,7 @@ import logging
 import re
 import threading
 import time
+import unicodedata
 from datetime import datetime
 
 from langchain.agents import create_react_agent, AgentExecutor
@@ -10,7 +11,7 @@ from langchain_openai import ChatOpenAI
 import redis
 
 from src.config import (
-    OPENAI_MODEL_NAME, OPENAI_MODEL_TEMPERATURE,
+    OPENAI_API_KEY, OPENAI_MODEL_NAME, OPENAI_MODEL_TEMPERATURE, OPENAI_BASE_URL,
     SQL_AGENT_MAX_ITERATIONS, SQL_AGENT_MAX_EXECUTION_TIME,
     RAG_AGENT_MAX_ITERATIONS, RAG_AGENT_MAX_EXECUTION_TIME,
     CONVERSATION_MAX_HISTORY,
@@ -63,6 +64,29 @@ def _latency_bucket(elapsed: float) -> str:
     return ">60s"
 _DATE_WITHOUT_YEAR = re.compile(r'(?<![/\d])(\d{1,2}/\d{1,2})(?![\d/])')
 _DATE_YEAR_EXTRA_DIGITS = re.compile(r'\b(\d{1,2}/\d{1,2}/)(\d{5,})\b')
+_GREETING_RE = re.compile(
+    r'^\s*(oi|ola|olá|eae|eai|e ai|e aí|hey|hi|hello|bom dia|boa tarde|boa noite|'
+    r'tudo bem|tudo bom|tudo certo|salve|opa|fala|fala ai|boa|ok|okay)\s*[!?.,]*\s*$',
+    re.IGNORECASE,
+)
+_EMOJI_RE = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"
+    "\U0001F300-\U0001F5FF"
+    "\U0001F680-\U0001F6FF"
+    "\U0001F1E0-\U0001F1FF"
+    "\U00002700-\U000027BF"
+    "\U0001F900-\U0001F9FF"
+    "\U00002600-\U000026FF"
+    "\U0001FA00-\U0001FA6F"
+    "\U0001FA70-\U0001FAFF"
+    "]+",
+    flags=re.UNICODE,
+)
+
+
+def _strip_emojis(text: str) -> str:
+    return _EMOJI_RE.sub("", text).strip()
 
 _model: ChatOpenAI | None = None
 _model_lock = threading.Lock()
@@ -82,6 +106,8 @@ def _get_model() -> ChatOpenAI:
                 _model = ChatOpenAI(
                     model=OPENAI_MODEL_NAME,
                     temperature=OPENAI_MODEL_TEMPERATURE,
+                    base_url=OPENAI_BASE_URL,
+                    api_key=OPENAI_API_KEY,
                 )
     return _model
 
@@ -152,6 +178,7 @@ def _complete_dates(message: str) -> str:
 
 def _build_invoke_input(message: str, history, sender_name: str) -> dict:
     is_first_message = len(history.messages) == 0
+    is_pure_greeting = bool(_GREETING_RE.match(message))
 
     history_text = ""
     if history.messages:
@@ -160,16 +187,13 @@ def _build_invoke_input(message: str, history, sender_name: str) -> dict:
             role = "Usuario" if msg.type == "human" else "Assistente"
             history_text += f"{role}: {msg.content}\n"
 
-    if sender_name and is_first_message:
+    if is_first_message and is_pure_greeting and sender_name:
         sender_context = (
-            f"PRIMEIRO CONTATO. Nome do usuario no WhatsApp: {sender_name}. "
-            f"Se for uma saudacao, responda APENAS com: 'Ola, {sender_name}! NINOIA, assistente interno da empresa. Como posso ajudar voce hoje?' — sem listar capacidades."
+            f"Nome do usuario: {sender_name}. "
+            f"Responda APENAS com: 'Ola, {sender_name}! NINOIA, assistente interno. Como posso ajudar?'"
         )
-    elif is_first_message:
-        sender_context = (
-            "PRIMEIRO CONTATO. Usuario sem nome cadastrado. "
-            "Se for uma saudacao, responda APENAS com: 'Ola! NINOIA, assistente interno da empresa. Como posso ajudar voce hoje?' — sem listar capacidades."
-        )
+    elif is_first_message and is_pure_greeting:
+        sender_context = "Responda APENAS com: 'Ola! NINOIA, assistente interno. Como posso ajudar?'"
     elif sender_name:
         sender_context = f"Nome do usuario no WhatsApp: {sender_name}."
     else:
@@ -195,7 +219,22 @@ def _trim_history(history) -> None:
                 history.add_ai_message(msg.content)
 
 
+_ERROR_PREFIXES = (
+    "Desculpe, ocorreu um erro",
+    "Desculpe, nao consegui processar",
+    "Nao encontrei informacoes",
+    "Desculpe, ocorreu um erro ao consultar",
+    "Não consegui obter",
+)
+
+
+def _is_error_response(response: str) -> bool:
+    return any(response.strip().startswith(p) for p in _ERROR_PREFIXES)
+
+
 def _save_to_history(message: str, response: str, session_id: str) -> None:
+    if _is_error_response(response):
+        return
     history = get_session_history(session_id)
     history.add_user_message(message)
     history.add_ai_message(response)
@@ -244,15 +283,22 @@ def _run_general_response(message: str, session_id: str, sender_name: str) -> st
         return "Olá! Como posso ajudar?"
 
 
+_VALID_CATEGORIES = ("sql", "docs", "ambos", "geral")
+
+
 def _classify_intent(message: str, history_text: str = "") -> str:
     try:
         history_section = f"Historico recente:\n{history_text}\n" if history_text else ""
         result = _get_model().invoke(router_prompt.format(input=message, history=history_section))
-        category = result.content.strip().lower()
-        if category not in ("sql", "docs", "ambos", "geral"):
-            logger.warning("Router retornou categoria invalida '%s', usando 'sql'", category)
-            return "sql"
-        return category
+        raw = result.content.strip().lower()
+
+        # Grok as vezes retorna "Categoria: sql" ou "sql." ou texto extra — extrai a categoria
+        for cat in _VALID_CATEGORIES:
+            if cat in raw:
+                return cat
+
+        logger.warning("Router retornou categoria invalida '%s', usando 'sql'", raw)
+        return "sql"
     except Exception as e:
         logger.error("Erro no router: %s — usando 'sql' como fallback", e)
         return "sql"
@@ -260,19 +306,27 @@ def _classify_intent(message: str, history_text: str = "") -> str:
 
 def invoke_sql_agent(message: str, session_id: str, sender_name: str = "") -> str:
     message = _complete_dates(message)
-    response = _run_sql_agent(message, session_id, sender_name)
+    response = _strip_emojis(_run_sql_agent(message, session_id, sender_name))
     _save_to_history(message, response, session_id)
     return response
 
 
 def invoke_rag_agent(message: str, session_id: str, sender_name: str = "") -> str:
-    response = _run_rag_agent(message, session_id, sender_name)
+    response = _strip_emojis(_run_rag_agent(message, session_id, sender_name))
     _save_to_history(message, response, session_id)
     return response
 
 
-def route_and_invoke(message: str, session_id: str, sender_name: str = "") -> str:
+def route_and_invoke(message: str, session_id: str, sender_name: str = "", on_thinking=None) -> str:
     message = _complete_dates(message)
+
+    # Fast-path: saudações simples não precisam do router nem do agente
+    if _GREETING_RE.match(message):
+        logger.info("Saudacao detectada para %s — fast-path geral", session_id)
+        _metric_inc("category:geral")
+        response = _strip_emojis(_run_general_response(message, session_id, sender_name))
+        _save_to_history(message, response, session_id)
+        return response
 
     cached = _cache_get(session_id, message)
     if cached:
@@ -292,6 +346,12 @@ def route_and_invoke(message: str, session_id: str, sender_name: str = "") -> st
     category = _classify_intent(message, history_text)
     logger.info("Intencao classificada como '%s' para: %.80s", category, message)
     _metric_inc(f"category:{category}")
+
+    if category != "geral" and on_thinking:
+        try:
+            on_thinking()
+        except Exception as e:
+            logger.warning("Falha ao enviar mensagem de espera: %s", e)
 
     t_start = time.time()
 
@@ -317,6 +377,8 @@ def route_and_invoke(message: str, session_id: str, sender_name: str = "") -> st
         logger.info("Agente AMBOS respondeu em %.1fs", elapsed)
     else:  # geral
         response = _run_general_response(message, session_id, sender_name)
+
+    response = _strip_emojis(response)
 
     if category != "geral" and not response.startswith("Desculpe"):
         _cache_set(session_id, message, response)

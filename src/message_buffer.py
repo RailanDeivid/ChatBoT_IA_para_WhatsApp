@@ -45,9 +45,21 @@ async def handle_debounce(chat_id: str, sender_name: str = "") -> None:
             logger.info("Enviando mensagem agrupada para %s: %s", chat_id, full_message)
 
             loop = asyncio.get_running_loop()
+
+            def _on_thinking():
+                send_whatsapp_message(
+                    number=chat_id,
+                    text="Pode levar alguns minutos, mas ja vou trazer essas informacoes para voce.",
+                )
+
             ai_response = await loop.run_in_executor(
                 None,
-                lambda: route_and_invoke(message=full_message, session_id=chat_id, sender_name=sender_name),
+                lambda: route_and_invoke(
+                    message=full_message,
+                    session_id=chat_id,
+                    sender_name=sender_name,
+                    on_thinking=_on_thinking,
+                ),
             )
 
             logger.info("Resposta do agente para %s: %.100s", chat_id, ai_response)

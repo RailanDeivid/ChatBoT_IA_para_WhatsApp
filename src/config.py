@@ -18,10 +18,14 @@ EVOLUTION_API_URL                = _require("EVOLUTION_API_URL")
 EVOLUTION_INSTANCE_NAME          = _require("EVOLUTION_INSTANCE_NAME")
 EVOLUTION_AUTHENTICATION_API_KEY = _require("AUTHENTICATION_API_KEY")
 
-# OpenAI
-OPENAI_API_KEY           = _require("OPENAI_API_KEY")
-OPENAI_MODEL_NAME        = _require("OPENAI_MODEL_NAME")
+# OpenRouter (modelo de chat)
+OPENAI_API_KEY           = _require("ROUTER_API_KEY")
+OPENAI_BASE_URL          = os.getenv("ROUTER_BASE_URL")
+OPENAI_MODEL_NAME        = _require("ROUTER_MODEL_NAME")
 OPENAI_MODEL_TEMPERATURE = float(_require("OPENAI_MODEL_TEMPERATURE"))
+
+# Whisper — OpenAI direto (apenas para transcrição de áudio)
+WHISPER_API_KEY = os.getenv("WHISPER_API_KEY")
 
 # Redis / Buffer
 REDIS_URL        = _require("BOT_REDIS_URI")

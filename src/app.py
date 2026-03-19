@@ -14,6 +14,7 @@ from src.config import UNAUTHORIZED_MESSAGE, REDIS_URL, RATE_LIMIT_MAX, RATE_LIM
 
 
 class _EvolutionKey(BaseModel):
+    id: Optional[str] = None
     fromMe: Optional[bool] = False
     remoteJid: Optional[str] = None
 

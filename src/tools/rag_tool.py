@@ -36,11 +36,13 @@ def _get_vs():
 class RAGDocumentQueryTool(BaseTool):
     name: str = "consultar_documentos"
     description: str = (
-        "Use para perguntas sobre documentos internos da empresa: políticas, procedimentos, e seja direto nas repostas"
-        "organograma, contatos de setores, emails, ramais, quem procurar para determinado assunto, "
-        "estrutura organizacional, manuais e qualquer informação institucional. "
-        "NÃO use para dados de vendas, faturamento, compras ou fornecedores. "
-        "Caso não tenha acesso a informação, responda que não tem acesso a essas informações, NÃO invente. "
+        "QUANDO USAR: OBRIGATORIO chamar esta ferramenta para QUALQUER pergunta sobre documentos internos, "
+        "politicas, procedimentos, organograma, contatos, emails, ramais ou informacoes institucionais. "
+        "PALAVRAS-CHAVE que ativam esta ferramenta: politica, procedimento, organograma, contato, "
+        "email, ramal, quem procurar, responsavel, manual, regulamento, norma, regra interna, "
+        "estrutura organizacional, setor, departamento, quem cuida, quem e responsavel. "
+        "NAO use para dados de vendas, faturamento, compras ou fornecedores. "
+        "NUNCA invente informacoes — se nao encontrar nos documentos, informe que nao tem acesso. "
         "Input: pergunta em linguagem natural."
     )
 
