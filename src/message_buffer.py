@@ -16,16 +16,35 @@ logger = logging.getLogger(__name__)
 redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 debounce_tasks: dict[str, asyncio.Task] = {}
 
+_CANCEL_WORDS = {"cancela", "cancel", "cancelar", "pare", "parar", "stop"}
+
+
+def _is_cancel_command(message: str) -> bool:
+    return message.strip().lower() in _CANCEL_WORDS
+
 
 async def buffer_message(chat_id: str, message: str, sender_name: str = "") -> None:
     buffer_key = f"{chat_id}{BUFFER_KEY_SUFIX}"
+
+    existing = debounce_tasks.get(chat_id)
+
+    if _is_cancel_command(message):
+        if existing and not existing.done():
+            existing.cancel()
+            logger.info("Tarefa cancelada pelo usuario para %s", chat_id)
+        await redis_client.delete(buffer_key)
+        debounce_tasks.pop(chat_id, None)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None, lambda: send_whatsapp_message(number=chat_id, text="Ok, operacao cancelada.")
+        )
+        return
 
     await redis_client.rpush(buffer_key, message)
     await redis_client.expire(buffer_key, BUFFER_TTL)
 
     logger.info("Mensagem adicionada ao buffer de %s: %s", chat_id, message)
 
-    existing = debounce_tasks.get(chat_id)
     if existing and not existing.done():
         existing.cancel()
         logger.debug("Debounce resetado para %s", chat_id)

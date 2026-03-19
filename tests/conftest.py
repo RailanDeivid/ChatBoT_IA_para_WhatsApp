@@ -12,6 +12,13 @@ for _mod in [
     "langchain_chroma",
     "chromadb",
     "langchain_community.vectorstores",
+    "seaborn",
+    "matplotlib",
+    "matplotlib.pyplot",
+    "matplotlib.ticker",
+    "matplotlib.patches",
+    "matplotlib.figure",
+    "matplotlib.axes",
 ]:
     sys.modules.setdefault(_mod, MagicMock())
 
@@ -34,3 +41,9 @@ _FAKE_ENV = {
 
 for _k, _v in _FAKE_ENV.items():
     os.environ.setdefault(_k, _v)
+
+import pytest
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
