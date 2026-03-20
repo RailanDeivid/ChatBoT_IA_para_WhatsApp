@@ -76,6 +76,10 @@ class DremioSalesQueryTool(BaseTool):
         "por semana → TO_CHAR(DATE_TRUNC('week', data_evento), 'WW-YYYY') AS semana_ano; "
         "por mes → TO_CHAR(DATE_TRUNC('month', data_evento), 'MM-YYYY') AS mes_ano; "
         "por ano → TO_CHAR(DATE_TRUNC('year', data_evento), 'YYYY') AS ano. "
+        "DIA DA SEMANA no Dremio: NUNCA use DAY_OF_WEEK() — nao e suportado. "
+        "Use EXTRACT(DOW FROM CAST(data_evento AS DATE)) que retorna: 1=Domingo, 2=Segunda-feira, 3=Terca-feira, 4=Quarta-feira, 5=Quinta-feira, 6=Sexta-feira, 7=Sabado. "
+        "Exemplo CASE para rotular: CASE EXTRACT(DOW FROM CAST(data_evento AS DATE)) WHEN 2 THEN 'Segunda-feira' WHEN 3 THEN 'Terca-feira' WHEN 4 THEN 'Quarta-feira' WHEN 5 THEN 'Quinta-feira' WHEN 6 THEN 'Sexta-feira' WHEN 7 THEN 'Sabado' WHEN 1 THEN 'Domingo' END AS dia_semana. "
+        "Para ordenar seg a dom: ORDER BY CASE EXTRACT(DOW FROM CAST(data_evento AS DATE)) WHEN 2 THEN 1 WHEN 3 THEN 2 WHEN 4 THEN 3 WHEN 5 THEN 4 WHEN 6 THEN 5 WHEN 7 THEN 6 WHEN 1 THEN 7 END. "
         "NUNCA use DATE_FORMAT (MySQL) no Dremio. "
         "OBRIGATORIO: SQL 100% valido para Dremio. Input: query SQL valida para Dremio."
     )
