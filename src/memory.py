@@ -23,8 +23,13 @@ def clear_session(session_id: str) -> None:
 def clear_all_sessions() -> int:
     """Apaga todos os históricos de conversa. Retorna a quantidade de chaves removidas."""
     client = redis_lib.from_url(REDIS_URL)
-    keys = client.keys("message_store:*")
-    if keys:
-        return client.delete(*keys)
-    return 0
+    deleted = 0
+    cursor = 0
+    while True:
+        cursor, keys = client.scan(cursor, match="message_store:*", count=100)
+        if keys:
+            deleted += client.delete(*keys)
+        if cursor == 0:
+            break
+    return deleted
 

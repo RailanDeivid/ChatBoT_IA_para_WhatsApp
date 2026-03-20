@@ -3,14 +3,15 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 import redis.asyncio as redis
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
 from src.message_buffer import buffer_message
 from src.integrations.evolution_api import get_media_base64, send_whatsapp_message
 from src.integrations.transcribe import transcribe_audio
 from src.access_control import init_db, is_authorized, is_admin, authorize, revoke, unblock, delete_user, list_users, get_user_nome
-from src.config import UNAUTHORIZED_MESSAGE, REDIS_URL, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW
+from src.memory import clear_session
+from src.config import UNAUTHORIZED_MESSAGE, REDIS_URL, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, EVOLUTION_AUTHENTICATION_API_KEY
 
 
 class _EvolutionKey(BaseModel):
@@ -69,10 +70,73 @@ async def health():
 @app.get("/metrics")
 async def metrics():
     keys = await _redis.keys("metrics:*")
-    if not keys:
-        return {}
-    values = await _redis.mget(*keys)
-    return {k.removeprefix("metrics:"): int(v) for k, v in zip(keys, values) if v}
+    raw: dict[str, int] = {}
+    if keys:
+        values = await _redis.mget(*keys)
+        raw = {k.removeprefix("metrics:"): int(v) for k, v in zip(keys, values) if v}
+
+    requests_total = raw.get("requests_total", 0)
+    cache_hits = raw.get("cache_hits", 0)
+    cache_hit_rate = round(cache_hits / requests_total * 100, 1) if requests_total else 0.0
+
+    errors_total = sum(v for k, v in raw.items() if k.startswith("errors:"))
+    error_rate = round(errors_total / requests_total * 100, 1) if requests_total else 0.0
+
+    latency: dict[str, dict] = {}
+    for agent in ("sql", "rag"):
+        buckets = {b: raw.get(f"latency:{agent}:{b}", 0) for b in ("<5s", "5-30s", "30-60s", ">60s")}
+        total_calls = sum(buckets.values())
+        latency[agent] = {**buckets, "total_calls": total_calls}
+
+    categories = {k.removeprefix("category:"): v for k, v in raw.items() if k.startswith("category:")}
+    errors = {k.removeprefix("errors:"): v for k, v in raw.items() if k.startswith("errors:")}
+
+    return {
+        "resumo": {
+            "requests_total": requests_total,
+            "cache_hits": cache_hits,
+            "cache_hit_rate_pct": cache_hit_rate,
+            "errors_total": errors_total,
+            "error_rate_pct": error_rate,
+        },
+        "categorias": categories,
+        "latencia": latency,
+        "erros": errors,
+    }
+
+
+def _check_admin_key(x_api_key: str | None) -> None:
+    """Valida chave de API para endpoints administrativos."""
+    if not x_api_key or x_api_key != EVOLUTION_AUTHENTICATION_API_KEY:
+        raise HTTPException(status_code=401, detail="Chave de API invalida.")
+
+
+@app.post("/limpar_cache")
+async def limpar_cache(x_api_key: Optional[str] = Header(default=None)):
+    """Remove todas as respostas cacheadas do Redis."""
+    _check_admin_key(x_api_key)
+    cursor = 0
+    deleted = 0
+    while True:
+        cursor, keys = await _redis.scan(cursor, match="cache:*", count=100)
+        if keys:
+            deleted += await _redis.delete(*keys)
+        if cursor == 0:
+            break
+    logger.info("Cache limpo via endpoint: %d chaves removidas.", deleted)
+    return {"chaves_removidas": deleted}
+
+
+@app.post("/reindexar")
+async def reindexar(x_api_key: Optional[str] = Header(default=None)):
+    """Indexa novos arquivos da pasta rag_files sem reiniciar o servidor."""
+    _check_admin_key(x_api_key)
+    import asyncio
+    loop = asyncio.get_running_loop()
+    from src.vectorstore import reload_vectorstore
+    ok, msg = await loop.run_in_executor(None, reload_vectorstore)
+    logger.info("Reindexacao via endpoint: %s", msg)
+    return {"sucesso": ok, "mensagem": msg}
 
 
 @app.post("/webhook")
@@ -97,6 +161,7 @@ async def webhook(payload: EvolutionWebhookPayload):
 
     # Ignora grupos
     if not chat_id or "@g.us" in chat_id:
+        logger.debug("Mensagem de grupo ignorada (chat_id=%s).", chat_id)
         return {"status": "ok"}
 
     # Extrai só o número (remove @s.whatsapp.net)
@@ -114,14 +179,24 @@ async def webhook(payload: EvolutionWebhookPayload):
         send_whatsapp_message(chat_id, "Você está enviando mensagens muito rapidamente. Aguarde um momento.")
         return {"status": "ok"}
 
+    # --- Comando /limpar (disponível para todos os usuários autorizados) ---
+    if message and message.strip().lower() == "/limpar":
+        clear_session(chat_id)
+        logger.info("Historico limpo pelo usuario %s (%s).", sender_name or phone, phone)
+        send_whatsapp_message(chat_id, "Historico de conversa apagado.")
+        return {"status": "ok"}
+
     # --- Comandos admin ---
     if message and message.startswith("/"):
         if is_admin(phone):
-            response = _handle_admin_command(message.strip(), admin_phone=phone)
+            logger.info("[admin] Comando recebido de %s (%s): %s", sender_name or phone, phone, message.strip())
+            response = _handle_admin_command(message.strip(), admin_phone=phone, sender_name=sender_name)
             if response:
+                logger.info("[admin] Resposta do comando para %s: %.120s", phone, response)
                 send_whatsapp_message(chat_id, response)
                 return {"status": "ok"}
         else:
+            logger.warning("[admin] Tentativa de comando por nao-admin %s (%s): %s", sender_name or phone, phone, message.strip())
             send_whatsapp_message(chat_id, "Comando não reconhecido.")
             return {"status": "ok"}
 
@@ -134,26 +209,27 @@ async def webhook(payload: EvolutionWebhookPayload):
 
     # Ignora mensagens sem texto (sticker, imagem sem legenda, reação, etc.)
     if not message:
+        logger.debug("Mensagem sem texto ignorada (chat_id=%s, tipo provavelmente midia/sticker/reacao).", chat_id)
         return {"status": "ok"}
 
     logger.info("Mensagem de %s: %.80s", sender_name or chat_id, message)
 
-    await buffer_message(chat_id=chat_id, message=message, sender_name=sender_name)
+    await buffer_message(chat_id=chat_id, message=message, sender_name=sender_name, message_id=key.id or "")
 
     return {"status": "ok"}
 
 
-def _handle_admin_command(message: str, admin_phone: str) -> str | None:
+def _handle_admin_command(message: str, admin_phone: str, sender_name: str = "") -> str | None:
     """
     Processa comandos administrativos enviados via WhatsApp.
 
     Comandos disponíveis:
-      /autorizar 5511999999999 Nome | Cargo | Casa
-      /autorizar 5511999999999 Nome | Cargo | Casa | admin
+      /autorizar 5511999999999 ; Nome ; Cargo ; Casa [; admin]
       /bloquear 5511999999999
+      /desbloquear 5511999999999
       /remover 5511999999999
-      /usuarios
-      /usuarios admin
+      /usuarios [admin]
+      /reindexar
       /ajuda
     """
     parts = message.split(None, 1)  # divide em comando + resto
@@ -166,43 +242,50 @@ def _handle_admin_command(message: str, admin_phone: str) -> str | None:
     if cmd == "/bloquear":
         phone = args.strip()
         if not phone:
-            return "⚠️ Uso: /bloquear 5511999999999"
+            return "Uso: /bloquear 5511999999999"
         return revoke(phone, revoked_by=admin_phone)
 
     if cmd == "/desbloquear":
         phone = args.strip()
         if not phone:
-            return "⚠️ Uso: /desbloquear 5511999999999"
+            return "Uso: /desbloquear 5511999999999"
         return unblock(phone, unblocked_by=admin_phone)
 
     if cmd == "/remover":
         phone = args.strip()
         if not phone:
-            return "⚠️ Uso: /remover 5511999999999"
+            return "Uso: /remover 5511999999999"
         return delete_user(phone, deleted_by=admin_phone)
 
     if cmd == "/usuarios":
-        if args.strip().lower() == "admin":
-            return _cmd_usuarios_admin()
-        return _cmd_usuarios()
+        return _cmd_usuarios(admin_only=args.strip().lower() == "admin")
+
+    if cmd == "/reindexar":
+        from src.vectorstore import reload_vectorstore
+        ok, msg = reload_vectorstore()
+        return msg
 
     if cmd == "/ajuda":
         return (
             "*Comandos disponíveis:*\n\n"
             "*/autorizar* 5511999 ; Nome ; Cargo ; Casa\n"
-            "→ Autoriza um novo usuário padrão\n\n"
+            "→ Autoriza novo usuario padrao\n\n"
             "*/autorizar* 5511999 ; Nome ; Cargo ; Casa ; admin\n"
-            "→ Autoriza um novo usuário como administrador\n\n"
+            "→ Autoriza novo usuario como administrador\n\n"
             "*/bloquear* 5511999\n"
-            "→ Bloqueia o acesso de um usuário\n\n"
+            "→ Bloqueia acesso de um usuario\n\n"
             "*/desbloquear* 5511999\n"
-            "→ Desbloqueia um usuário sem alterar seus dados\n\n"
+            "→ Desbloqueia um usuario\n\n"
             "*/remover* 5511999\n"
-            "→ Remove o usuário do sistema permanentemente\n\n"
+            "→ Remove usuario permanentemente\n\n"
             "*/usuarios*\n"
-            "→ Lista todos os usuários padrão cadastrados\n\n"
+            "→ Lista usuarios padrao cadastrados\n\n"
             "*/usuarios admin*\n"
-            "→ Lista todos os administradores cadastrados"
+            "→ Lista administradores cadastrados\n\n"
+            "*/reindexar*\n"
+            "→ Indexa novos arquivos da pasta rag_files sem reiniciar\n\n"
+            "*/limpar*\n"
+            "→ Apaga seu historico de conversa (disponivel a todos)"
         )
 
     return None  # comando desconhecido — segue fluxo normal do bot
@@ -236,43 +319,25 @@ def _cmd_autorizar(args: str, admin_phone: str) -> str:
     )
 
 
-def _cmd_usuarios() -> str:
+def _cmd_usuarios(admin_only: bool = False) -> str:
     users = list_users()
     if not users:
         return "Nenhum usuário cadastrado."
 
-    ativos   = [u for u in users if u["active"] and not u["is_admin"]]
-    inativos = [u for u in users if not u["active"] and not u["is_admin"]]
+    filtered = [u for u in users if bool(u["is_admin"]) == admin_only]
+    ativos   = [u for u in filtered if u["active"]]
+    inativos = [u for u in filtered if not u["active"]]
 
     if not ativos and not inativos:
-        return "Nenhum usuário padrão cadastrado."
+        return "Nenhum administrador cadastrado." if admin_only else "Nenhum usuário padrão cadastrado."
 
-    lines = ["*Usuários padrão:*"]
+    titulo = "*Administradores:*" if admin_only else "*Usuários padrão:*"
+    lines = [titulo]
     for u in ativos:
-        lines.append(f"• {u['telefone']} | {u['nome']} | {u['cargo']} | {u['casa']}")
-
-    if inativos:
-        lines.append("\n*Bloqueados:*")
-        for u in inativos:
-            lines.append(f"• {u['nome']} ({u['telefone']})")
-
-    return "\n".join(lines)
-
-
-def _cmd_usuarios_admin() -> str:
-    users = list_users()
-    if not users:
-        return "Nenhum usuário cadastrado."
-
-    ativos   = [u for u in users if u["active"] and u["is_admin"]]
-    inativos = [u for u in users if not u["active"] and u["is_admin"]]
-
-    if not ativos and not inativos:
-        return "Nenhum administrador cadastrado."
-
-    lines = ["*Administradores:*"]
-    for u in ativos:
-        lines.append(f"• {u['telefone']} | {u['nome']} | {u['cargo']} | {u['casa']} | _admin_")
+        linha = f"• {u['telefone']} | {u['nome']} | {u['cargo']} | {u['casa']}"
+        if admin_only:
+            linha += " | _admin_"
+        lines.append(linha)
 
     if inativos:
         lines.append("\n*Bloqueados:*")

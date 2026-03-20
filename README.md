@@ -85,14 +85,14 @@ Assistente inteligente integrado ao WhatsApp com arquitetura **multi-agente**: u
 ```
 whatsapp-agent/
 ├── src/
-│   ├── app.py                      # FastAPI — endpoints /webhook e /health + comandos admin
+│   ├── app.py                      # FastAPI — /webhook, /health, /metrics, /limpar_cache, /reindexar + comandos admin
 │   ├── access_control.py           # Controle de acesso — SQLite (autorizar, bloquear, remover)
-│   ├── chains.py                   # Multi-agente: Router + Agente SQL + Agente RAG
+│   ├── chains.py                   # Multi-agente: Router + Agente SQL + Agente RAG + fallback de modelo
 │   ├── config.py                   # Leitura das variáveis de ambiente (.env)
 │   ├── memory.py                   # Histórico de conversa via Redis (TTL 24h)
-│   ├── message_buffer.py           # Buffer de mensagens com debounce
+│   ├── message_buffer.py           # Buffer de mensagens com debounce + indicador de digitando + reações
 │   ├── prompts.py                  # Prompts: ReAct SQL (NINOIA), ReAct RAG, Router, Geral (LLM direto)
-│   ├── vectorstore.py              # RAG: indexação de PDFs/TXTs via Chroma + OpenAI Embeddings
+│   ├── vectorstore.py              # RAG: indexação de PDFs/TXTs via Chroma + OpenAI Embeddings + reload dinâmico
 │   ├── docs/
 │   │   └── architecture.svg        # Diagrama do fluxo completo
 │   ├── connectors/
@@ -103,11 +103,11 @@ whatsapp-agent/
 │   │   ├── mysql_tools.py          # Tool LangChain: consultar_compras (MySQL)
 │   │   ├── chart_tool.py           # Tool LangChain: gerar_grafico — gráficos PNG via matplotlib/seaborn
 │   │   ├── excel_tool.py           # Tool LangChain: exportar_excel — planilha .xlsx via pandas/openpyxl
-│   │   ├── rag_tool.py             # Tool LangChain: consultar_documentos (Chroma)
+│   │   ├── rag_tool.py             # Tool LangChain: consultar_documentos (Chroma) + invalidate_vectorstore()
 │   │   ├── utils.py                # strip_markdown — remove blocos sql do output do agente
 │   │   └── fantasia_abreviacao.py  # Mapeamento abreviação → nome fantasia do estabelecimento
 │   └── integrations/
-│       ├── evolution_api.py        # Envio de mensagem + download de mídia via Evolution API
+│       ├── evolution_api.py        # Envio de mensagem/mídia + presence (digitando) + reações via Evolution API
 │       └── transcribe.py           # Transcrição de áudio via OpenAI Whisper (whisper-1)
 ├── data/                           # Banco SQLite de controle de acesso (data/access.db)
 ├── rag_files/                      # PDFs e TXTs para indexação (apagados após indexar)
@@ -135,17 +135,19 @@ mensagem → route_and_invoke()
 [Agente SQL] [Agente RAG] [Agente SQL] [LLM direto]
 Grok (xAI)   Grok (xAI)   +            Grok (xAI)
 Dremio+MySQL Chroma       [Agente RAG] sem ferramentas
-                          (sequencial)
+                          (paralelo — ThreadPoolExecutor)
 ```
 
 | Rota | Quando aciona | Ferramentas |
 |---|---|---|
 | `sql` | Vendas, faturamento, delivery, formas de pagamento, estornos, metas, orçamento, compras, pedidos, SSS, ticket médio | `consultar_vendas` (Dremio) + `consultar_delivery` (Dremio) + `consultar_formas_pagamento` (Dremio) + `consultar_estornos` (Dremio) + `consultar_metas` (Dremio) + `consultar_compras` (MySQL) + `gerar_grafico` + `exportar_excel` |
 | `docs` | Políticas, organograma, contatos, emails, ramais, quem procurar | `consultar_documentos` (Chroma) |
-| `ambos` | Pergunta envolve dados numéricos E documentos ao mesmo tempo | Executa Agente SQL + Agente RAG em sequência e combina as respostas |
+| `ambos` | Pergunta envolve dados numéricos E documentos ao mesmo tempo | Executa Agente SQL + Agente RAG **em paralelo** (ThreadPoolExecutor) e combina as respostas |
 | `geral` | Saudações, agradecimentos, perguntas fora do escopo | Nenhuma — LLM chamado diretamente (sem ReAct, sem ferramentas) |
 
 Cada agente tem seu próprio **prompt especializado** e **ferramentas exclusivas** — o Agente SQL nunca acessa documentos e o Agente RAG nunca acessa bancos de dados. Para `geral`, não há overhead de agente ReAct: o modelo responde diretamente via `general_prompt`.
+
+**Fallback de modelo:** se o modelo principal falhar (rate limit, timeout de API), o sistema tenta automaticamente com um modelo alternativo configurado em `FALLBACK_MODEL_NAME`. Se não houver fallback configurado, retorna mensagem de erro ao usuário.
 
 ---
 
@@ -311,7 +313,7 @@ UNAUTHORIZED_MESSAGE=Olá! Você não está autorizado a usar este assistente. E
 
 ### Comandos admin (via WhatsApp)
 
-Apenas usuários com `is_admin = 1` podem usar os comandos abaixo. Usuários comuns que tentarem recebem `"Comando não reconhecido."`.
+Apenas usuários com `is_admin = 1` podem usar os comandos abaixo, exceto `/limpar` que está disponível a todos os usuários autorizados. Usuários comuns que tentarem outros comandos recebem `"Comando não reconhecido."`.
 
 #### Listar usuários padrão
 
@@ -426,6 +428,36 @@ Resposta do bot:
 
 ---
 
+#### Reindexar documentos sem reiniciar
+
+O que escrever no WhatsApp:
+```
+/reindexar
+```
+
+Resposta do bot:
+```
+2 arquivo(s) indexado(s) com 47 chunks.
+```
+
+Indexa todos os arquivos que estiverem em `rag_files/` imediatamente, sem reiniciar o servidor. Os arquivos são deletados após a indexação e o índice Chroma existente é atualizado.
+
+---
+
+#### Limpar histórico de conversa (todos os usuários)
+
+O que escrever no WhatsApp:
+```
+/limpar
+```
+
+Resposta do bot:
+```
+Historico de conversa apagado.
+```
+
+---
+
 #### Ver ajuda no WhatsApp
 
 O que escrever no WhatsApp:
@@ -438,25 +470,31 @@ Resposta do bot:
 *Comandos disponíveis:*
 
 */autorizar* 5511999 ; Nome ; Cargo ; Casa
-→ Autoriza um novo usuário padrão
+→ Autoriza novo usuario padrao
 
 */autorizar* 5511999 ; Nome ; Cargo ; Casa ; admin
-→ Autoriza um novo usuário como administrador
+→ Autoriza novo usuario como administrador
 
 */bloquear* 5511999
-→ Bloqueia o acesso de um usuário
+→ Bloqueia acesso de um usuario
 
 */desbloquear* 5511999
-→ Desbloqueia um usuário sem alterar seus dados
+→ Desbloqueia um usuario
 
 */remover* 5511999
-→ Remove o usuário do sistema permanentemente
+→ Remove usuario permanentemente
 
 */usuarios*
-→ Lista todos os usuários padrão cadastrados
+→ Lista usuarios padrao cadastrados
 
 */usuarios admin*
-→ Lista todos os administradores cadastrados
+→ Lista administradores cadastrados
+
+*/reindexar*
+→ Indexa novos arquivos da pasta rag_files sem reiniciar
+
+*/limpar*
+→ Apaga seu historico de conversa (disponivel a todos)
 ```
 
 ---
@@ -468,23 +506,31 @@ Coloque PDFs ou TXTs na pasta `rag_files/` para que o Agente RAG passe a respond
 **Fluxo de indexação:**
 ```
 1. Coloque o arquivo em  rag_files/
-2. docker compose restart bot
-3. Na primeira pergunta sobre documentos, o bot:
+2. Envie /reindexar no WhatsApp (admin)  ← sem restart
+   OU  docker compose restart bot
+3. O bot:
    - extrai o texto (PyPDFLoader / TextLoader)
    - divide em chunks de 1000 caracteres com sobreposição de 200
    - gera embeddings via OpenAI
-   - salva no índice Chroma em  vectorstore/  (volume persistente)
+   - adiciona ao índice Chroma em  vectorstore/  (volume persistente)
    - apaga o arquivo original automaticamente
-4. Próximas consultas usam o índice já salvo — sem reprocessar
+4. Próximas consultas já usam os novos documentos
 ```
 
-**Comandos Docker para o RAG:**
+**Opções para indexar novos documentos:**
 
 ```bash
-# Adicionou novo PDF — só restart, sem rebuild
+# Opção 1 — sem reiniciar (recomendado)
+# Coloque o arquivo em rag_files/ e envie no WhatsApp:
+/reindexar
+
+# Opção 2 — via endpoint HTTP (com API key no header x-api-key)
+curl -X POST http://localhost:8000/reindexar -H "x-api-key: SUA_API_KEY"
+
+# Opção 3 — restart do container
 docker compose restart bot
 
-# Acompanhar a indexação nos logs
+# Acompanhar nos logs
 docker compose logs -f bot
 # Procure por: "Arquivo indexado e removido: organograma.pdf"
 
@@ -495,6 +541,53 @@ docker compose up -d
 ```
 
 > O custo de embedding (OpenAI `text-embedding-ada-002`) ocorre apenas na indexação. Perguntas subsequentes não geram custo de embedding — apenas o custo normal de tokens do Grok via OpenRouter.
+
+---
+
+## Endpoints HTTP
+
+| Método | Endpoint | Auth | Descrição |
+|---|---|---|---|
+| `GET` | `/health` | Nenhuma | Status do servidor |
+| `GET` | `/metrics` | Nenhuma | Métricas de uso (requests, cache hit rate, latência por agente, erros) |
+| `POST` | `/webhook` | Evolution API | Recebe mensagens do WhatsApp |
+| `POST` | `/limpar_cache` | `x-api-key` header | Remove todas as respostas cacheadas do Redis |
+| `POST` | `/reindexar` | `x-api-key` header | Indexa novos arquivos de `rag_files/` sem reiniciar |
+
+**Exemplo de uso dos endpoints admin:**
+```bash
+# Limpar cache de respostas
+curl -X POST http://localhost:8000/limpar_cache \
+     -H "x-api-key: SUA_AUTHENTICATION_API_KEY"
+
+# Reindexar documentos
+curl -X POST http://localhost:8000/reindexar \
+     -H "x-api-key: SUA_AUTHENTICATION_API_KEY"
+
+# Ver métricas
+curl http://localhost:8000/metrics
+```
+
+**Exemplo de resposta do `/metrics`:**
+```json
+{
+  "resumo": {
+    "requests_total": 142,
+    "cache_hits": 38,
+    "cache_hit_rate_pct": 26.8,
+    "errors_total": 2,
+    "error_rate_pct": 1.4
+  },
+  "categorias": { "sql": 98, "docs": 12, "ambos": 4, "geral": 28 },
+  "latencia": {
+    "sql": { "<5s": 21, "5-30s": 61, "30-60s": 12, ">60s": 4, "total_calls": 98 },
+    "rag": { "<5s": 8, "5-30s": 4, "30-60s": 0, ">60s": 0, "total_calls": 12 }
+  },
+  "erros": { "sql": 2 }
+}
+```
+
+> A autenticação dos endpoints admin usa a mesma chave configurada em `AUTHENTICATION_API_KEY` no `.env`.
 
 ---
 
@@ -743,6 +836,10 @@ DREMIO_PASSWORD=sua_senha
 # RAG (documentos internos)
 RAG_FILES_DIR=rag_files        # pasta onde colocar os PDFs/TXTs
 VECTOR_STORE_PATH=vectorstore  # onde o índice Chroma é salvo
+
+# Modelo de fallback — usado automaticamente se o modelo principal falhar
+# Deixe em branco para desativar o fallback
+FALLBACK_MODEL_NAME=x-ai/grok-3-mini-beta
 
 # Controle de acesso
 SQLITE_PATH=data/access.db

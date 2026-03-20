@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+import time
 
 from langchain.tools import BaseTool
 
@@ -56,21 +57,31 @@ class MySQLPurchasesQueryTool(BaseTool):
         "`V. Unitário Convertido` (DECIMAL, valor unitario convertido), "
         "`V. Total` (DECIMAL, valor total da compra — use SUM(`V. Total`) para totalizar). "
         + _ABREV_HINT
-        + "Input: query SQL valida para MySQL."
+        + "AGRUPAMENTO TEMPORAL NO MYSQL: "
+        "dia a dia → CAST(`D. Lançamento` AS DATE) AS data; "
+        "por mes → DATE_FORMAT(`D. Lançamento`, '%m-%Y') AS mes_ano; "
+        "por ano → DATE_FORMAT(`D. Lançamento`, '%Y') AS ano. "
+        "NUNCA use TO_CHAR ou DATE_TRUNC no MySQL. "
+        "Input: query SQL valida para MySQL."
     )
 
     def _run(self, query: str) -> str:
         query = strip_markdown(query)
+        query_original = query
         query = _replace_abbreviations_in_query(query)
-        logger.info("Executando query MySQL: %s", query)
+        if query != query_original:
+            logger.info("[compras] Abreviacoes substituidas na query.")
+        logger.info("[compras] Executando query MySQL: %s", query)
+        t0 = time.time()
         try:
             df = client(query)
             if df.empty:
+                logger.info("[compras] Query retornou 0 linhas em %.1fs.", time.time() - t0)
                 return "Nenhum resultado encontrado."
-            logger.info("Query OK — %d linhas retornadas.", len(df))
+            logger.info("[compras] %d linhas retornadas em %.1fs.", len(df), time.time() - t0)
             return df.to_string(index=False)
         except Exception as e:
-            logger.error("ERRO MySQL: %s: %s", type(e).__name__, e)
+            logger.error("[compras] ERRO apos %.1fs — %s: %s", time.time() - t0, type(e).__name__, e)
             return f"Erro ao consultar MySQL (compras): {str(e)}"
 
     async def _arun(self, query: str) -> str:

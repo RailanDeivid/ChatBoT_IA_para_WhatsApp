@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 
 from langchain.tools import BaseTool
 
@@ -8,6 +9,23 @@ from src.tools.fantasia_abreviacao import ABREVIACAO_TO_FANTASIA
 from src.tools.utils import strip_markdown, format_df
 
 logger = logging.getLogger(__name__)
+
+
+def _run_dremio_query(label: str, query: str) -> str:
+    """Executa query no Dremio e retorna resultado formatado. Compartilhado por todas as ferramentas Dremio."""
+    query = strip_markdown(query)
+    logger.info("[%s] Executando query: %s", label, query)
+    t0 = time.time()
+    try:
+        df = client(query)
+        if df.empty:
+            logger.info("[%s] Query retornou 0 linhas em %.1fs.", label, time.time() - t0)
+            return "Nenhum resultado encontrado."
+        logger.info("[%s] %d linhas retornadas em %.1fs.", label, len(df), time.time() - t0)
+        return format_df(df)
+    except Exception as e:
+        logger.error("[%s] ERRO apos %.1fs — %s: %s", label, time.time() - t0, type(e).__name__, e)
+        return f"Erro ao consultar dados: {str(e)}"
 
 # Hint para o agente usar o código abreviado exato no campo codigo_casa
 _CODIGO_CASA_HINT = (
@@ -50,27 +68,20 @@ class DremioSalesQueryTool(BaseTool):
         "Grupo (TEXT, tipo específico: SUCOS, CERVEJAS, CHOPS, DRINKS, COQUETEIS, AGUAS, etc.), "
         "Sub_Grupo (TEXT, segmento: ALCOOLICAS, NAO ALCOOLICAS, PRODUTOS DE EVENTO, VENDAS DE ALIMENTOS, etc.). "
         + _CODIGO_CASA_HINT
-        + "SINTAXE DE DATAS no Dremio: use DATE_SUB(CURRENT_DATE, 1) para ontem, "
-        "DATE_TRUNC('month', CURRENT_DATE) para inicio do mes. "
+        + "SINTAXE DE DATAS no Dremio: DATE_SUB(CURRENT_DATE, 1) para ontem; DATE_TRUNC('month', CURRENT_DATE) para inicio do mes. "
         "NUNCA use CURRENT_DATE - INTERVAL nem CURRENT_DATE - 1. "
-        "Para data especifica: CAST(data_evento AS DATE). "
         "SEMANA FECHADA: calcule as datas exatas (segunda a domingo) e use BETWEEN 'AAAA-MM-DD' AND 'AAAA-MM-DD'. "
-        "OBRIGATORIO: SQL 100% valido para Dremio — NUNCA use sintaxe PostgreSQL, MySQL ou outro banco. "
-        "Input: query SQL valida para Dremio."
+        "AGRUPAMENTO TEMPORAL NO DREMIO — use a coluna de periodo SEMPRE como primeira coluna no SELECT e no GROUP BY: "
+        "dia a dia → CAST(data_evento AS DATE) AS data; "
+        "por semana → TO_CHAR(DATE_TRUNC('week', data_evento), 'WW-YYYY') AS semana_ano; "
+        "por mes → TO_CHAR(DATE_TRUNC('month', data_evento), 'MM-YYYY') AS mes_ano; "
+        "por ano → TO_CHAR(DATE_TRUNC('year', data_evento), 'YYYY') AS ano. "
+        "NUNCA use DATE_FORMAT (MySQL) no Dremio. "
+        "OBRIGATORIO: SQL 100% valido para Dremio. Input: query SQL valida para Dremio."
     )
 
     def _run(self, query: str) -> str:
-        query = strip_markdown(query)
-        logger.info("Executando query Dremio: %s", query)
-        try:
-            df = client(query)
-            if df.empty:
-                return "Nenhum resultado encontrado."
-            logger.info("Query OK — %d linhas retornadas.", len(df))
-            return format_df(df)
-        except Exception as e:
-            logger.error("ERRO Dremio: %s: %s", type(e).__name__, e)
-            return f"Erro ao consultar Dremio (vendas): {str(e)}"
+        return _run_dremio_query("vendas", query)
 
     async def _arun(self, query: str) -> str:
         loop = asyncio.get_running_loop()
@@ -118,17 +129,7 @@ class DremioDeliveryQueryTool(BaseTool):
     )
 
     def _run(self, query: str) -> str:
-        query = strip_markdown(query)
-        logger.info("Executando query Dremio (delivery): %s", query)
-        try:
-            df = client(query)
-            if df.empty:
-                return "Nenhum resultado encontrado."
-            logger.info("Query OK — %d linhas retornadas.", len(df))
-            return format_df(df)
-        except Exception as e:
-            logger.error("ERRO Dremio (delivery): %s: %s", type(e).__name__, e)
-            return f"Erro ao consultar Dremio (delivery): {str(e)}"
+        return _run_dremio_query("delivery", query)
 
     async def _arun(self, query: str) -> str:
         loop = asyncio.get_running_loop()
@@ -174,17 +175,7 @@ class DremioEstornosQueryTool(BaseTool):
     )
 
     def _run(self, query: str) -> str:
-        query = strip_markdown(query)
-        logger.info("Executando query Dremio (estornos): %s", query)
-        try:
-            df = client(query)
-            if df.empty:
-                return "Nenhum resultado encontrado."
-            logger.info("Query OK — %d linhas retornadas.", len(df))
-            return format_df(df)
-        except Exception as e:
-            logger.error("ERRO Dremio (estornos): %s: %s", type(e).__name__, e)
-            return f"Erro ao consultar Dremio (estornos): {str(e)}"
+        return _run_dremio_query("estornos", query)
 
     async def _arun(self, query: str) -> str:
         loop = asyncio.get_running_loop()
@@ -227,17 +218,7 @@ class DremioMetasQueryTool(BaseTool):
     )
 
     def _run(self, query: str) -> str:
-        query = strip_markdown(query)
-        logger.info("Executando query Dremio (metas): %s", query)
-        try:
-            df = client(query)
-            if df.empty:
-                return "Nenhum resultado encontrado."
-            logger.info("Query OK — %d linhas retornadas.", len(df))
-            return format_df(df)
-        except Exception as e:
-            logger.error("ERRO Dremio (metas): %s: %s", type(e).__name__, e)
-            return f"Erro ao consultar Dremio (metas): {str(e)}"
+        return _run_dremio_query("metas", query)
 
     async def _arun(self, query: str) -> str:
         loop = asyncio.get_running_loop()
@@ -274,17 +255,7 @@ class DremioPaymentQueryTool(BaseTool):
     )
 
     def _run(self, query: str) -> str:
-        query = strip_markdown(query)
-        logger.info("Executando query Dremio (pagamentos): %s", query)
-        try:
-            df = client(query)
-            if df.empty:
-                return "Nenhum resultado encontrado."
-            logger.info("Query OK — %d linhas retornadas.", len(df))
-            return format_df(df)
-        except Exception as e:
-            logger.error("ERRO Dremio (pagamentos): %s: %s", type(e).__name__, e)
-            return f"Erro ao consultar Dremio (pagamentos): {str(e)}"
+        return _run_dremio_query("pagamentos", query)
 
     async def _arun(self, query: str) -> str:
         loop = asyncio.get_running_loop()

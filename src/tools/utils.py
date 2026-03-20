@@ -36,8 +36,15 @@ def extract_json(text: str) -> dict:
     text = re.sub(r'\s*```$', '', text)
     text = text.strip()
 
-    # Extrai o primeiro objeto JSON { ... } da string (ignora texto antes/depois)
-    match = re.search(r'\{.*\}', text, re.DOTALL)
+    # Tenta parsear diretamente primeiro (mais rápido para inputs bem formados)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Extrai o primeiro objeto JSON { ... } da string, sem ser greedy além do necessário
+    # re.DOTALL permite newlines; o padrão evita capturar desde o primeiro { até o último }
+    match = re.search(r'\{(?:[^{}]|\{[^{}]*\})*\}', text, re.DOTALL)
     if match:
         text = match.group(0)
 

@@ -5,7 +5,10 @@ import re
 import redis.asyncio as redis
 
 from src.config import REDIS_URL, BUFFER_KEY_SUFIX, DEBOUNCE_SECONDS, BUFFER_TTL
-from src.integrations.evolution_api import send_whatsapp_message, send_whatsapp_image, send_whatsapp_document
+from src.integrations.evolution_api import (
+    send_whatsapp_message, send_whatsapp_image, send_whatsapp_document,
+    send_whatsapp_presence, send_whatsapp_reaction,
+)
 from src.chains import route_and_invoke
 
 _CHART_RE = re.compile(r'\[CHART:(chart:[a-f0-9]+)\|caption:([^\]]*)\]')
@@ -23,7 +26,29 @@ def _is_cancel_command(message: str) -> bool:
     return message.strip().lower() in _CANCEL_WORDS
 
 
-async def buffer_message(chat_id: str, message: str, sender_name: str = "") -> None:
+async def _deliver_media(
+    loop,
+    chat_id: str,
+    redis_key: str,
+    label: str,
+    send_fn,
+    text_response: str,
+) -> None:
+    """Envia texto opcional + arquivo de mídia (gráfico ou Excel) para o WhatsApp."""
+    if text_response:
+        await loop.run_in_executor(
+            None, lambda: send_whatsapp_message(number=chat_id, text=text_response)
+        )
+    b64 = await redis_client.get(redis_key)
+    if b64:
+        await redis_client.delete(redis_key)
+        await loop.run_in_executor(None, lambda: send_fn(b64))
+        logger.info("[buffer] %s enviado com sucesso para %s.", label, chat_id)
+    else:
+        logger.warning("[buffer] Chave do %s nao encontrada no Redis: %s", label, redis_key)
+
+
+async def buffer_message(chat_id: str, message: str, sender_name: str = "", message_id: str = "") -> None:
     buffer_key = f"{chat_id}{BUFFER_KEY_SUFIX}"
 
     existing = debounce_tasks.get(chat_id)
@@ -43,6 +68,10 @@ async def buffer_message(chat_id: str, message: str, sender_name: str = "") -> N
     await redis_client.rpush(buffer_key, message)
     await redis_client.expire(buffer_key, BUFFER_TTL)
 
+    # Armazena ID da última mensagem para reagir depois
+    if message_id:
+        await redis_client.setex(f"{chat_id}:last_msg_id", BUFFER_TTL, message_id)
+
     logger.info("Mensagem adicionada ao buffer de %s: %s", chat_id, message)
 
     if existing and not existing.done():
@@ -50,6 +79,16 @@ async def buffer_message(chat_id: str, message: str, sender_name: str = "") -> N
         logger.debug("Debounce resetado para %s", chat_id)
 
     debounce_tasks[chat_id] = asyncio.create_task(handle_debounce(chat_id, sender_name))
+
+
+async def _keep_typing(chat_id: str, loop, stop_event: asyncio.Event) -> None:
+    """Envia 'digitando...' a cada 1s até stop_event ser setado."""
+    while not stop_event.is_set():
+        await loop.run_in_executor(None, lambda: send_whatsapp_presence(number=chat_id))
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=1)
+        except asyncio.TimeoutError:
+            pass
 
 
 async def handle_debounce(chat_id: str, sender_name: str = "") -> None:
@@ -65,21 +104,31 @@ async def handle_debounce(chat_id: str, sender_name: str = "") -> None:
 
             loop = asyncio.get_running_loop()
 
+            last_msg_id = await redis_client.get(f"{chat_id}:last_msg_id")
+
+            # Mantém "digitando..." enquanto o agente processa
+            stop_typing = asyncio.Event()
+            typing_task = asyncio.create_task(_keep_typing(chat_id, loop, stop_typing))
+
             def _on_thinking():
                 send_whatsapp_message(
                     number=chat_id,
                     text="Pode levar alguns minutos, mas ja vou trazer essas informacoes para voce.",
                 )
 
-            ai_response = await loop.run_in_executor(
-                None,
-                lambda: route_and_invoke(
-                    message=full_message,
-                    session_id=chat_id,
-                    sender_name=sender_name,
-                    on_thinking=_on_thinking,
-                ),
-            )
+            try:
+                ai_response = await loop.run_in_executor(
+                    None,
+                    lambda: route_and_invoke(
+                        message=full_message,
+                        session_id=chat_id,
+                        sender_name=sender_name,
+                        on_thinking=_on_thinking,
+                    ),
+                )
+            finally:
+                stop_typing.set()
+                await typing_task
 
             logger.info("Resposta do agente para %s: %.100s", chat_id, ai_response)
 
@@ -89,39 +138,29 @@ async def handle_debounce(chat_id: str, sender_name: str = "") -> None:
             if chart_match:
                 chart_key = chart_match.group(1)
                 caption = chart_match.group(2)
+                logger.info("[buffer] Resposta contem grafico (key=%s, caption='%s').", chart_key, caption)
                 text_response = _CHART_RE.sub('', ai_response).strip()
-                if text_response:
-                    await loop.run_in_executor(
-                        None, lambda: send_whatsapp_message(number=chat_id, text=text_response)
-                    )
-                b64 = await redis_client.get(chart_key)
-                if b64:
-                    await redis_client.delete(chart_key)
-                    await loop.run_in_executor(
-                        None, lambda: send_whatsapp_image(number=chat_id, b64=b64, caption=caption)
-                    )
-                else:
-                    logger.warning("Chave do grafico nao encontrada no Redis: %s", chart_key)
+                await _deliver_media(
+                    loop, chat_id, chart_key, "grafico",
+                    lambda b64: send_whatsapp_image(number=chat_id, b64=b64, caption=caption),
+                    text_response,
+                )
             elif excel_match:
                 excel_key = excel_match.group(1)
                 filename = excel_match.group(2)
+                logger.info("[buffer] Resposta contem Excel (key=%s, filename='%s').", excel_key, filename)
                 text_response = _EXCEL_RE.sub('', ai_response).strip()
-                if text_response:
-                    await loop.run_in_executor(
-                        None, lambda: send_whatsapp_message(number=chat_id, text=text_response)
-                    )
-                b64 = await redis_client.get(excel_key)
-                if b64:
-                    await redis_client.delete(excel_key)
-                    await loop.run_in_executor(
-                        None, lambda: send_whatsapp_document(number=chat_id, b64=b64, filename=filename)
-                    )
-                else:
-                    logger.warning("Chave do Excel nao encontrada no Redis: %s", excel_key)
+                await _deliver_media(
+                    loop, chat_id, excel_key, f"Excel '{filename}'",
+                    lambda b64: send_whatsapp_document(number=chat_id, b64=b64, filename=filename),
+                    text_response,
+                )
             else:
+                logger.info("[buffer] Enviando resposta em texto para %s.", chat_id)
                 await loop.run_in_executor(
                     None, lambda: send_whatsapp_message(number=chat_id, text=ai_response)
                 )
+
 
         await redis_client.delete(buffer_key)
 

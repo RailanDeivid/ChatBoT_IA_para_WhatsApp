@@ -1,4 +1,4 @@
-<svg width="2000" height="1980" viewBox="0 0 2000 1980" xmlns="http://www.w3.org/2000/svg">
+<svg width="2000" height="2100" viewBox="0 0 2000 2100" xmlns="http://www.w3.org/2000/svg">
 <style>
   .bg   { fill: #0B0F19; }
 
@@ -83,143 +83,150 @@
 <line class="arr" x1="1000" y1="216" x2="1000" y2="246"/>
 
 <!-- 1.3 App.py -->
-<rect class="card" x="600" y="250" width="800" height="110" rx="12"/>
+<rect class="card" x="600" y="250" width="800" height="130" rx="12"/>
 <text class="t-head" x="1000" y="278">app.py  —  Webhook FastAPI  (porta 8000)</text>
-<text class="t-sub"  x="1000" y="300">extrai chat_id · sender_name · texto da mensagem</text>
+<text class="t-sub"  x="1000" y="300">extrai chat_id · sender_name · message_id · texto da mensagem</text>
 <text class="t-sub"  x="1000" y="318">filtra grupos @g.us · fromMe · sticker · imagem sem legenda</text>
 <text class="t-sub"  x="1000" y="336">detecta tipo (texto / audio) e verifica acesso</text>
+<text class="t-sub"  x="1000" y="356" fill="#6EE7B7">endpoints admin: /metrics · /limpar_cache · /reindexar  (x-api-key)</text>
 
-<line class="arr" x1="1000" y1="360" x2="1000" y2="390"/>
+<line class="arr" x1="1000" y1="380" x2="1000" y2="410"/>
 
 <!-- ════════════════════════════════════════════════════
      SEÇÃO 2 — CONTROLE DE ACESSO
      ════════════════════════════════════════════════════ -->
-<rect class="card-yellow" x="600" y="394" width="800" height="170" rx="12"/>
-<text class="t-head-y" x="1000" y="424">Controle de Acesso  —  access_control.py</text>
-<text class="t-sub-y"  x="1000" y="452">SQLite  data/access.db   ·   verifica telefone do remetente</text>
+<rect class="card-yellow" x="600" y="414" width="800" height="170" rx="12"/>
+<text class="t-head-y" x="1000" y="444">Controle de Acesso  —  access_control.py</text>
+<text class="t-sub-y"  x="1000" y="468">SQLite  data/access.db   ·   verifica telefone do remetente</text>
 
 <!-- divisor interno -->
-<line class="divider" x1="620" y1="468" x2="1380" y2="468"/>
+<line class="divider" x1="620" y1="484" x2="1380" y2="484"/>
 
-<!-- 3 saídas possíveis — colunas em 750 · 1000 · 1250 -->
-<text class="t-sub-r" x="750" y="492">✗ Nao autorizado</text>
-<text class="t-sub-y" x="1000" y="492">△ Admin + /comando</text>
-<text class="t-sub"   x="1250" y="492">✓ Autorizado</text>
+<!-- 3 saídas possíveis -->
+<text class="t-sub-r" x="750" y="508">✗ Nao autorizado</text>
+<text class="t-sub-y" x="1000" y="508">△ Admin + /comando</text>
+<text class="t-sub"   x="1250" y="508">✓ Autorizado</text>
 
-<text class="t-sub-r" x="750" y="518">→ bloqueia · encerra</text>
-<text class="t-sub-y" x="1000" y="518">→ executa · encerra</text>
-<text class="t-sub"   x="1250" y="518">→ continua fluxo</text>
+<text class="t-sub-r" x="750" y="534">→ bloqueia · encerra</text>
+<text class="t-sub-y" x="1000" y="534">→ executa · encerra</text>
+<text class="t-sub"   x="1250" y="534">→ continua fluxo</text>
 
-<!-- Seta blocked — loop lateral direito (curva suave) -->
-<path class="arr-r" d="M1400,492 C1680,492 1680,106 1400,106" fill="none"/>
-<text class="t-sub-r" x="1660" y="299" font-size="14px" text-anchor="middle" transform="rotate(-90,1660,299)">bloqueado</text>
+<!-- Seta blocked — loop lateral direito -->
+<path class="arr-r" d="M1400,508 C1680,508 1680,106 1400,106" fill="none"/>
+<text class="t-sub-r" x="1660" y="307" font-size="14px" text-anchor="middle" transform="rotate(-90,1660,307)">bloqueado</text>
 
 <!-- Cmd Admin — caixa lateral esquerda -->
-<line class="arr-y" x1="600" y1="492" x2="380" y2="492"/>
-<rect class="card-yellow" x="150" y="436" width="230" height="130" rx="10"/>
-<text class="t-head-y" x="265" y="462" font-size="17px">Cmd Admin</text>
-<text class="t-sub-y"  x="265" y="486" font-size="14px">/autorizar · /bloquear</text>
-<text class="t-sub-y"  x="265" y="506" font-size="14px">/remover · /desbloquear</text>
-<text class="t-sub-y"  x="265" y="526" font-size="14px">/usuarios · /ajuda</text>
+<line class="arr-y" x1="600" y1="508" x2="380" y2="508"/>
+<rect class="card-yellow" x="130" y="444" width="250" height="160" rx="10"/>
+<text class="t-head-y" x="255" y="470" font-size="17px">Cmd Admin</text>
+<text class="t-sub-y"  x="255" y="492" font-size="13px">/autorizar · /bloquear</text>
+<text class="t-sub-y"  x="255" y="510" font-size="13px">/remover · /desbloquear</text>
+<text class="t-sub-y"  x="255" y="528" font-size="13px">/usuarios · /ajuda</text>
+<text class="t-sub-y"  x="255" y="546" font-size="13px">/reindexar (RAG)</text>
+<text class="t-sub"    x="255" y="566" font-size="12px" fill="#6EE7B7">/limpar (todos usuarios)</text>
 
 <!-- somente "Autorizado" continua -->
-<line class="arr" x1="1000" y1="564" x2="1000" y2="578"/>
+<line class="arr" x1="1000" y1="584" x2="1000" y2="598"/>
 
 <!-- ════════════════════════════════════════════════════
      SEÇÃO 3 — PRÉ-PROCESSAMENTO (Texto / Áudio)
      ════════════════════════════════════════════════════ -->
-<rect class="card" x="600" y="578" width="800" height="110" rx="12"/>
-<text class="t-head" x="1000" y="606">Pre-processamento de Mensagem</text>
-<line class="divider" x1="620" y1="618" x2="1380" y2="618"/>
+<rect class="card" x="600" y="598" width="800" height="110" rx="12"/>
+<text class="t-head" x="1000" y="626">Pre-processamento de Mensagem</text>
+<line class="divider" x1="620" y1="638" x2="1380" y2="638"/>
 
 <!-- duas colunas -->
-<text class="t-sub"  x="800" y="638" font-weight="bold">Texto</text>
-<text class="t-sub"  x="800" y="656">extrai conversation /</text>
-<text class="t-sub"  x="800" y="672">extendedTextMessage.text</text>
+<text class="t-sub"  x="800" y="658" font-weight="bold">Texto</text>
+<text class="t-sub"  x="800" y="676">extrai conversation /</text>
+<text class="t-sub"  x="800" y="692">extendedTextMessage.text</text>
 
-<line x1="1000" y1="622" x2="1000" y2="684" stroke="#1F2937" stroke-width="1"/>
+<line x1="1000" y1="642" x2="1000" y2="704" stroke="#1F2937" stroke-width="1"/>
 
-<text class="t-sub"  x="1200" y="638" font-weight="bold">Audio  →  Whisper</text>
-<text class="t-sub"  x="1200" y="656">get_media_base64() via Evolution</text>
-<text class="t-sub"  x="1200" y="672">OpenAI whisper-1  ·  language=pt</text>
+<text class="t-sub"  x="1200" y="658" font-weight="bold">Audio  →  Whisper</text>
+<text class="t-sub"  x="1200" y="676">get_media_base64() via Evolution</text>
+<text class="t-sub"  x="1200" y="692">OpenAI whisper-1  ·  language=pt</text>
 
-<line class="arr" x1="1000" y1="688" x2="1000" y2="718"/>
+<line class="arr" x1="1000" y1="708" x2="1000" y2="738"/>
 
 <!-- ════════════════════════════════════════════════════
      SEÇÃO 4 — BUFFER
      ════════════════════════════════════════════════════ -->
-<rect class="card" x="600" y="722" width="800" height="120" rx="12"/>
-<text class="t-head" x="1000" y="750">message_buffer.py  —  Debounce Redis</text>
-<text class="t-sub"  x="1000" y="772">acumula mensagens do mesmo chat em {chat_id}_msg_buffer</text>
-<text class="t-sub"  x="1000" y="792">timer 3 s — reinicia a cada nova msg — dispara route_and_invoke()</text>
-<text class="t-sub"  x="1000" y="812">TTL 5 min no Redis  ·  histórico de conversa 24 h</text>
+<rect class="card" x="600" y="742" width="800" height="140" rx="12"/>
+<text class="t-head" x="1000" y="770">message_buffer.py  —  Debounce Redis</text>
+<text class="t-sub"  x="1000" y="792">acumula mensagens do mesmo chat em {chat_id}_msg_buffer</text>
+<text class="t-sub"  x="1000" y="812">timer 3 s — reinicia a cada nova msg — dispara route_and_invoke()</text>
+<text class="t-sub"  x="1000" y="832">TTL 5 min no Redis  ·  histórico de conversa 24 h</text>
+<text class="t-sub"  x="1000" y="854" fill="#FACC15">reage ⏳ ao iniciar · envia "digitando..." · reage ✅ ao finalizar</text>
 
-<line class="arr" x1="1000" y1="842" x2="1000" y2="872"/>
+<line class="arr" x1="1000" y1="882" x2="1000" y2="912"/>
 
 <!-- ════════════════════════════════════════════════════
      SEÇÃO 5 — ROUTER
      ════════════════════════════════════════════════════ -->
-<rect class="card" x="600" y="876" width="800" height="140" rx="12"/>
-<text class="t-head" x="1000" y="906">Router LLM  —  chains.py</text>
-<text class="t-sub"  x="1000" y="930">classifica a intenção da pergunta em uma de quatro rotas</text>
-<line class="divider" x1="620" y1="944" x2="1380" y2="944"/>
-<text class="t-sub"  x="800" y="962">sql  →  dados / faturamento</text>
-<text class="t-sub"  x="1200" y="962">docs  →  documentos internos</text>
-<text class="t-sub"  x="800" y="980">ambos  →  dados + documentos</text>
-<text class="t-sub"  x="1200" y="980">geral  →  saudações / fora escopo</text>
-<text class="t-sub"  x="1000" y="1000" fill="#6B7280">em caso de resposta inválida do Router: fallback → sql</text>
+<rect class="card" x="600" y="916" width="800" height="160" rx="12"/>
+<text class="t-head" x="1000" y="946">Router LLM  —  chains.py</text>
+<text class="t-sub"  x="1000" y="970">classifica a intenção da pergunta em uma de quatro rotas</text>
+<line class="divider" x1="620" y1="984" x2="1380" y2="984"/>
+<text class="t-sub"  x="800" y="1002">sql  →  dados / faturamento</text>
+<text class="t-sub"  x="1200" y="1002">docs  →  documentos internos</text>
+<text class="t-sub"  x="800" y="1020">ambos  →  dados + documentos (paralelo)</text>
+<text class="t-sub"  x="1200" y="1020">geral  →  saudações / fora escopo</text>
+<text class="t-sub"  x="1000" y="1040" fill="#6B7280">resposta inválida do Router → fallback sql</text>
+<text class="t-sub"  x="1000" y="1058" fill="#6B7280">falha do modelo principal → fallback model (FALLBACK_MODEL_NAME)</text>
 
 <!-- ════════════════════════════════════════════════════
      SEÇÃO 6 — AGENTES  (3 colunas)
      ════════════════════════════════════════════════════ -->
 
 <!-- setas do router para os 3 agentes -->
-<!-- Router bottom y=1016 — SQL center=460, LLM center=1000, RAG center=1540 -->
-<path class="arr-d" d="M800,1016 L460,1082"/>
-<path class="arr-d" d="M1000,1016 L1000,1026"/>
-<line class="arr" x1="1000" y1="1052" x2="1000" y2="1084"/>
-<path class="arr-d" d="M1200,1016 L1540,1082"/>
+<!-- Router bottom y=1076 — SQL center=460, LLM center=1000, RAG center=1540 -->
+<path class="arr-d" d="M800,1076 L460,1122"/>
+<path class="arr-d" d="M1000,1076 L1000,1086"/>
+<line class="arr" x1="1000" y1="1112" x2="1000" y2="1124"/>
+<path class="arr-d" d="M1200,1076 L1540,1122"/>
 
 <!-- badges de rota -->
-<rect class="badge-y" x="378" y="1026" width="164" height="26" rx="6"/>
-<text class="t-label" x="460" y="1043">sql / ambos</text>
+<rect class="badge-y" x="378" y="1086" width="164" height="26" rx="6"/>
+<text class="t-label" x="460" y="1103">sql / ambos</text>
 
-<rect class="badge-y" x="918" y="1024" width="164" height="28" rx="6"/>
-<text class="t-label" x="1000" y="1043" font-size="17px">geral</text>
+<rect class="badge-y" x="918" y="1084" width="164" height="28" rx="6"/>
+<text class="t-label" x="1000" y="1103" font-size="17px">geral</text>
 
-<rect class="badge-y" x="1458" y="1026" width="164" height="26" rx="6"/>
-<text class="t-label" x="1540" y="1043">docs / ambos</text>
+<rect class="badge-y" x="1458" y="1086" width="164" height="26" rx="6"/>
+<text class="t-label" x="1540" y="1103">docs / ambos</text>
 
 <!-- ─── COLUNA SQL (x=10, w=900, center=460) ─── -->
-<rect class="card-purple" x="10" y="1084" width="900" height="185" rx="14"/>
-<text class="t-head-p" x="460" y="1112">Agente SQL  —  Grok (xAI)</text>
-<text class="t-sub-p"  x="460" y="1134">ReAct: Thought → Action → Observation → Final Answer</text>
-<text class="t-sub-p"  x="460" y="1153">Ferramentas: Dremio (vendas · delivery · pgto · estornos · metas)</text>
-<text class="t-sub-p"  x="460" y="1171">MySQL (compras)  ·  gerar_grafico  ·  exportar_excel</text>
-<text class="t-sub-p"  x="460" y="1190">Prompt: confidencialidade · regras SQL Dremio · SSS · datas</text>
-<text class="t-sub-p"  x="460" y="1208">Histórico: últimas 5 mensagens por sessão (Redis)</text>
+<rect class="card-purple" x="10" y="1124" width="900" height="205" rx="14"/>
+<text class="t-head-p" x="460" y="1152">Agente SQL  —  Grok (xAI)</text>
+<text class="t-sub-p"  x="460" y="1174">ReAct: Thought → Action → Observation → Final Answer</text>
+<text class="t-sub-p"  x="460" y="1193">Ferramentas: Dremio (vendas · delivery · pgto · estornos · metas)</text>
+<text class="t-sub-p"  x="460" y="1211">MySQL (compras)  ·  gerar_grafico  ·  exportar_excel</text>
+<text class="t-sub-p"  x="460" y="1230">Prompt: confidencialidade · regras SQL Dremio · SSS · datas</text>
+<text class="t-sub-p"  x="460" y="1248">Histórico: últimas 5 mensagens por sessão (Redis)</text>
+<text class="t-sub-p"  x="460" y="1268" fill="#FACC15" font-size="13px">ambos: executa em paralelo com RAG (ThreadPoolExecutor)</text>
 
 <!-- ─── COLUNA LLM (x=920, w=160, center=1000) ─── -->
-<rect class="card" x="920" y="1084" width="160" height="160" rx="12"/>
-<text class="t-head" x="1000" y="1114">LLM Direto</text>
-<text class="t-sub"  x="1000" y="1138">Grok (xAI)</text>
-<text class="t-sub"  x="1000" y="1158">general_prompt</text>
-<text class="t-sub"  x="1000" y="1178">sem ferramentas</text>
-<text class="t-sub"  x="1000" y="1198">resposta direta</text>
+<rect class="card" x="920" y="1124" width="160" height="160" rx="12"/>
+<text class="t-head" x="1000" y="1154">LLM Direto</text>
+<text class="t-sub"  x="1000" y="1178">Grok (xAI)</text>
+<text class="t-sub"  x="1000" y="1198">general_prompt</text>
+<text class="t-sub"  x="1000" y="1218">sem ferramentas</text>
+<text class="t-sub"  x="1000" y="1238">resposta direta</text>
 
 <!-- ─── COLUNA RAG (x=1090, w=900, center=1540) ─── -->
-<rect class="card-purple" x="1090" y="1084" width="900" height="160" rx="14"/>
-<text class="t-head-p" x="1540" y="1116">Agente RAG  —  Grok (xAI)</text>
-<text class="t-sub-p"  x="1540" y="1140">ReAct: Thought → Action → Observation → Final Answer</text>
-<text class="t-sub-p"  x="1540" y="1160">Ferramenta: consultar_documentos (Chroma)</text>
-<text class="t-sub-p"  x="1540" y="1180">Prompt: responder somente com trechos dos documentos</text>
-<text class="t-sub-p"  x="1540" y="1200">Busca semântica  ·  k=5 chunks  ·  vectorstore persistente</text>
+<rect class="card-purple" x="1090" y="1124" width="900" height="180" rx="14"/>
+<text class="t-head-p" x="1540" y="1156">Agente RAG  —  Grok (xAI)</text>
+<text class="t-sub-p"  x="1540" y="1180">ReAct: Thought → Action → Observation → Final Answer</text>
+<text class="t-sub-p"  x="1540" y="1200">Ferramenta: consultar_documentos (Chroma)</text>
+<text class="t-sub-p"  x="1540" y="1220">Prompt: responder somente com trechos dos documentos</text>
+<text class="t-sub-p"  x="1540" y="1240">Busca semântica  ·  k=5 chunks  ·  vectorstore persistente</text>
+<text class="t-sub-p"  x="1540" y="1260" fill="#FACC15" font-size="13px">/reindexar: reload dinâmico sem restart do servidor</text>
 
 <!-- setas agents → tools -->
-<line class="arr" x1="460"  y1="1269" x2="460"  y2="1278"/>
-<line class="arr" x1="1540" y1="1244" x2="1540" y2="1278"/>
+<line class="arr" x1="460"  y1="1329" x2="460"  y2="1338"/>
+<line class="arr" x1="1540" y1="1304" x2="1540" y2="1338"/>
 <!-- LLM direto vai direto para pos-proc -->
-<path class="arr-d" d="M1000,1244 Q1000,1400 1000,1644" fill="none"/>
+<path class="arr-d" d="M1000,1284 Q1000,1440 1000,1704" fill="none"/>
 
 <!-- ════════════════════════════════════════════════════
      SEÇÃO 7 — TOOLS
@@ -229,57 +236,59 @@
 <!-- 6×148+5×4=908, start x=12, centers: 86·238·390·542·694·846 -->
 
 <!-- ─── SQL Tools box (x=10, w=900, center=460) ─── -->
-<rect class="card-tool" x="10" y="1282" width="900" height="160" rx="12"/>
-<text class="t-tool" x="460" y="1308" style="font-size: 15px">Seleciona e executa a ferramenta adequada</text>
-<line x1="20" y1="1318" x2="900" y2="1318" stroke="#00CC6A" stroke-width="1" opacity="0.4"/>
-<line x1="460" y1="1318" x2="460" y2="1432" stroke="#00CC6A" stroke-width="0.5" opacity="0.3"/>
+<rect class="card-tool" x="10" y="1342" width="900" height="160" rx="12"/>
+<text class="t-tool" x="460" y="1368" style="font-size: 15px">Seleciona e executa a ferramenta adequada</text>
+<line x1="20" y1="1378" x2="900" y2="1378" stroke="#00CC6A" stroke-width="1" opacity="0.4"/>
+<line x1="460" y1="1378" x2="460" y2="1492" stroke="#00CC6A" stroke-width="0.5" opacity="0.3"/>
 <!-- coluna 1 (center=235) -->
-<text class="t-tool-s" x="235" y="1344" style="font-size: 15px">consultar_vendas</text>
-<text class="t-tool-s" x="235" y="1366" style="font-size: 15px">consultar_delivery</text>
-<text class="t-tool-s" x="235" y="1388" style="font-size: 15px">consultar_formas_pagamento</text>
-<text class="t-tool-s" x="235" y="1410" style="font-size: 15px">consultar_estornos</text>
+<text class="t-tool-s" x="235" y="1404" style="font-size: 15px">consultar_vendas</text>
+<text class="t-tool-s" x="235" y="1426" style="font-size: 15px">consultar_delivery</text>
+<text class="t-tool-s" x="235" y="1448" style="font-size: 15px">consultar_formas_pagamento</text>
+<text class="t-tool-s" x="235" y="1470" style="font-size: 15px">consultar_estornos</text>
 <!-- coluna 2 (center=685) -->
-<text class="t-tool-s" x="685" y="1344" style="font-size: 15px">consultar_metas</text>
-<text class="t-tool-s" x="685" y="1366" style="font-size: 15px">consultar_compras</text>
-<text class="t-tool-s" x="685" y="1388" style="font-size: 15px">gerar_grafico</text>
-<text class="t-tool-s" x="685" y="1410" style="font-size: 15px">exportar_excel</text>
+<text class="t-tool-s" x="685" y="1404" style="font-size: 15px">consultar_metas</text>
+<text class="t-tool-s" x="685" y="1426" style="font-size: 15px">consultar_compras</text>
+<text class="t-tool-s" x="685" y="1448" style="font-size: 15px">gerar_grafico</text>
+<text class="t-tool-s" x="685" y="1470" style="font-size: 15px">exportar_excel</text>
 
 <!-- ─── RAG Tool box (x=1090, w=900, center=1540) ─── -->
-<rect class="card-tool" x="1090" y="1282" width="900" height="160" rx="12"/>
-<text class="t-tool" x="1540" y="1308" style="font-size: 15px">Seleciona e executa a ferramenta adequada</text>
-<line x1="1100" y1="1318" x2="1980" y2="1318" stroke="#00CC6A" stroke-width="1" opacity="0.4"/>
-<text class="t-tool-s" x="1540" y="1390" style="font-size: 17px">consultar_documentos</text>
+<rect class="card-tool" x="1090" y="1342" width="900" height="160" rx="12"/>
+<text class="t-tool" x="1540" y="1368" style="font-size: 15px">Seleciona e executa a ferramenta adequada</text>
+<line x1="1100" y1="1378" x2="1980" y2="1378" stroke="#00CC6A" stroke-width="1" opacity="0.4"/>
+<text class="t-tool-s" x="1540" y="1450" style="font-size: 17px">consultar_documentos</text>
 
-<!-- setas tools → pos-proc (bottom y=1442) -->
-<path class="arr-d" d="M460,1442  Q460,1540  1000,1644"  fill="none"/>
-<path class="arr-d" d="M1540,1442 Q1540,1550 1000,1644"  fill="none"/>
+<!-- setas tools → pos-proc (bottom y=1502) -->
+<path class="arr-d" d="M460,1502  Q460,1600  1000,1704"  fill="none"/>
+<path class="arr-d" d="M1540,1502 Q1540,1610 1000,1704"  fill="none"/>
 
 <!-- ════════════════════════════════════════════════════
      SEÇÃO 8 — PÓS-PROCESSAMENTO
      ════════════════════════════════════════════════════ -->
-<rect class="card" x="600" y="1644" width="800" height="100" rx="12"/>
-<text class="t-head" x="1000" y="1672">chains.py  —  Pos-processamento</text>
-<text class="t-sub"  x="1000" y="1696">salva histórico atualizado no Redis (TTL 24 h)</text>
-<text class="t-sub"  x="1000" y="1718">retorna resposta formatada ao caller</text>
+<rect class="card" x="600" y="1704" width="800" height="100" rx="12"/>
+<text class="t-head" x="1000" y="1732">chains.py  —  Pos-processamento</text>
+<text class="t-sub"  x="1000" y="1756">salva histórico atualizado no Redis (TTL 24 h)</text>
+<text class="t-sub"  x="1000" y="1778">retorna resposta formatada ao caller</text>
 
-<line class="arr-p" x1="1000" y1="1744" x2="1000" y2="1764"/>
+<line class="arr-p" x1="1000" y1="1804" x2="1000" y2="1824"/>
 
 <!-- ════════════════════════════════════════════════════
      SEÇÃO 9 — ENVIO
      ════════════════════════════════════════════════════ -->
-<rect class="card" x="600" y="1768" width="800" height="112" rx="12"/>
-<text class="t-head" x="1000" y="1796">integrations/evolution_api.py</text>
-<text class="t-sub"  x="1000" y="1818">send_whatsapp_message()   →  POST Evolution API  →  texto</text>
-<text class="t-sub"  x="1000" y="1838">send_whatsapp_image()     →  POST Evolution API  →  imagem (PNG)</text>
-<text class="t-sub"  x="1000" y="1858">send_whatsapp_document()  →  POST Evolution API  →  arquivo (.xlsx)</text>
+<rect class="card" x="600" y="1828" width="800" height="150" rx="12"/>
+<text class="t-head" x="1000" y="1856">integrations/evolution_api.py</text>
+<text class="t-sub"  x="1000" y="1878">send_whatsapp_message()   →  POST Evolution API  →  texto</text>
+<text class="t-sub"  x="1000" y="1898">send_whatsapp_image()     →  POST Evolution API  →  imagem (PNG)</text>
+<text class="t-sub"  x="1000" y="1918">send_whatsapp_document()  →  POST Evolution API  →  arquivo (.xlsx)</text>
+<text class="t-sub"  x="1000" y="1938" fill="#FACC15">send_whatsapp_presence()  →  status "digitando..." no chat</text>
+<text class="t-sub"  x="1000" y="1958" fill="#FACC15">send_whatsapp_reaction()  →  reação ⏳ / ✅ na mensagem</text>
 
-<line class="arr" x1="1000" y1="1880" x2="1000" y2="1900"/>
+<line class="arr" x1="1000" y1="1978" x2="1000" y2="1998"/>
 
 <!-- ════════════════════════════════════════════════════
      SEÇÃO 10 — USUÁRIO FINAL
      ════════════════════════════════════════════════════ -->
-<rect class="card" x="600" y="1904" width="800" height="76" rx="12"/>
-<text class="t-head" x="1000" y="1934">Usuario WhatsApp</text>
-<text class="t-sub"  x="1000" y="1956">recebe a resposta no chat</text>
+<rect class="card" x="600" y="2002" width="800" height="76" rx="12"/>
+<text class="t-head" x="1000" y="2032">Usuario WhatsApp</text>
+<text class="t-sub"  x="1000" y="2054">recebe a resposta no chat</text>
 
 </svg>

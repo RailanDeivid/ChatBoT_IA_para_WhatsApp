@@ -3,10 +3,10 @@ import base64
 import io
 import json
 import logging
+import time
 import uuid
 
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import matplotlib.patches as mpatches
@@ -23,29 +23,51 @@ from src.tools.utils import strip_markdown, extract_json
 logger = logging.getLogger(__name__)
 
 _CHART_KEY_PREFIX = "chart:"
-_CHART_TTL = 120  # seconds
+_CHART_TTL = 120  # segundos
 
 _redis = redis_lib.Redis.from_url(REDIS_URL, decode_responses=True)
 
-# ── Palette ────────────────────────────────────────────────────────────────────
-_PRIMARY   = "#1a6b2f"
-_ACCENT    = "#2ecc71"
-_BG        = "#ffffff"
-_GRID      = "#eeeeee"
-_TEXT_DARK = "#1a1a1a"
-_TEXT_MID  = "#555555"
+# ── Tema centralizado ──────────────────────────────────────────────────────────
+_THEME = {
+    "primary":   "#1a6b2f",
+    "accent":    "#2ecc71",
+    "bg":        "#ffffff",
+    "grid":      "#eeeeee",
+    "text_dark": "#1a1a1a",
+    "text_mid":  "#555555",
+    "font":      "DejaVu Sans",
+    "dpi":       160,
+}
+
+_PRIMARY    = _THEME["primary"]
+_ACCENT     = _THEME["accent"]
+_BG         = _THEME["bg"]
+_GRID       = _THEME["grid"]
+_TEXT_DARK  = _THEME["text_dark"]
+_TEXT_MID   = _THEME["text_mid"]
 _TEXT_LIGHT = "#888888"
+
 _GREEN_PALETTE = [
     "#a8d5a2", "#7ec87a", "#52b856", "#2ecc71",
     "#27ae60", "#1e8449", "#1a6b2f", "#145a27",
 ]
+
+_matplotlib_ready = False
+
+
+def _setup_matplotlib() -> None:
+    """Configura o backend não-interativo uma única vez (evita side-effect no import)."""
+    global _matplotlib_ready
+    if not _matplotlib_ready:
+        matplotlib.use("Agg")
+        _matplotlib_ready = True
 
 def _green_gradient(n: int) -> list:
     cmap = plt.cm.get_cmap("Greens")
     return [cmap(0.32 + 0.58 * i / max(n - 1, 1)) for i in range(n)]
 
 def _pie_palette(n: int) -> list:
-    """Mixes greens with complementary soft tones for pie readability."""
+    """Combina verdes com tons suaves complementares para legibilidade no pizza."""
     base = [
         "#27ae60", "#52b856", "#a8d5a2", "#145a27",
         "#7ec87a", "#1e8449", "#2ecc71", "#1a6b2f",
@@ -60,16 +82,17 @@ def _fmt_pct(pct: float) -> str:
     return f"{pct:.1f}%"
 
 def _parse_title(titulo: str):
-    """Split 'Main Title | Subtitle' into (main, subtitle)."""
+    """Divide 'Titulo Principal | Subtitulo' em (principal, subtitulo)."""
     parts = [p.strip() for p in titulo.split("|", 1)]
     if len(parts) == 2:
         return parts[0], parts[1]
     return parts[0], ""
 
 def _apply_base_style():
+    _setup_matplotlib()
     sns.set_theme(style="white", font_scale=1.0)
     plt.rcParams.update({
-        "font.family": "DejaVu Sans",
+        "font.family": _THEME["font"],
         "axes.facecolor": _BG,
         "figure.facecolor": _BG,
         "axes.spines.top": False,
@@ -106,13 +129,13 @@ def _add_footer_line(fig):
 
 def _to_b64(fig) -> str:
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=160, bbox_inches="tight", facecolor=_BG)
+    fig.savefig(buf, format="png", dpi=_THEME["dpi"], bbox_inches="tight", facecolor=_BG)
     plt.close(fig)
     buf.seek(0)
     return base64.b64encode(buf.read()).decode()
 
 
-# ── Bar Chart ──────────────────────────────────────────────────────────────────
+# ── Grafico de Barras ──────────────────────────────────────────────────────────
 def _build_bar_chart(df, titulo: str, col_categoria: str, col_valor: str) -> str:
     _apply_base_style()
     df = df[[col_categoria, col_valor]].dropna()
@@ -169,7 +192,7 @@ def _build_bar_chart(df, titulo: str, col_categoria: str, col_valor: str) -> str
     return _to_b64(fig)
 
 
-# ── Line Chart ─────────────────────────────────────────────────────────────────
+# ── Grafico de Linha ───────────────────────────────────────────────────────────
 def _build_line_chart(df, titulo: str, col_categoria: str, col_valor: str) -> str:
     _apply_base_style()
     df = df[[col_categoria, col_valor]].dropna()
@@ -187,20 +210,20 @@ def _build_line_chart(df, titulo: str, col_categoria: str, col_valor: str) -> st
     fig.patch.set_facecolor(_BG)
     ax.set_facecolor(_BG)
 
-    # Gradient fill under line
+    # Preenchimento gradiente abaixo da linha
     ax.fill_between(x, vals, alpha=0.12, color=_PRIMARY, zorder=1)
 
-    # Shadow line (thicker, lighter)
+    # Linha de sombra (mais grossa e transparente)
     ax.plot(x, vals, color=_ACCENT, linewidth=5, alpha=0.18, zorder=2,
             solid_capstyle="round")
-    # Main line
+    # Linha principal
     ax.plot(x, vals, color=_PRIMARY, linewidth=2.8, zorder=3,
             solid_capstyle="round", solid_joinstyle="round")
-    # Markers
+    # Marcadores nos pontos
     ax.scatter(x, vals, color=_BG, edgecolors=_PRIMARY,
                s=80, linewidth=2.5, zorder=4)
 
-    # Values above markers
+    # Valores acima dos marcadores
     for xi, val in zip(x, vals):
         ax.text(xi, val + max(vals) * 0.035, _fmt(val),
                 ha="center", va="bottom", fontsize=8.5,
@@ -226,14 +249,14 @@ def _build_line_chart(df, titulo: str, col_categoria: str, col_valor: str) -> st
     return _to_b64(fig)
 
 
-# ── Pie Chart ──────────────────────────────────────────────────────────────────
+# ── Grafico de Pizza ───────────────────────────────────────────────────────────
 def _build_pie_chart(df, titulo: str, col_categoria: str, col_valor: str) -> str:
     _apply_base_style()
     df = df[[col_categoria, col_valor]].dropna()
     df[col_valor] = df[col_valor].astype(float)
     df = df.sort_values(col_valor, ascending=False).reset_index(drop=True)
 
-    # Group small slices (<2%) into "Outros"
+    # Agrupa fatias menores que 2% em "Outros"
     total = df[col_valor].sum()
     mask = (df[col_valor] / total) < 0.02
     if mask.sum() > 1:
@@ -249,7 +272,7 @@ def _build_pie_chart(df, titulo: str, col_categoria: str, col_valor: str) -> str
     n = len(labels)
     colors = _pie_palette(n)
 
-    # Slightly explode the largest slice
+    # Destaca levemente a maior fatia
     explode = [0.04 if i == 0 else 0.0 for i in range(n)]
 
     fig, ax = plt.subplots(figsize=(10, 7))
@@ -273,7 +296,7 @@ def _build_pie_chart(df, titulo: str, col_categoria: str, col_valor: str) -> str
         at.set_fontweight("bold")
         at.set_color("white")
 
-    # Legend with value + %
+    # Legenda com valor absoluto e percentual
     legend_labels = [
         f"{lbl}  –  {_fmt(v)}  ({v/total*100:.1f}%)"
         for lbl, v in zip(labels, vals)
@@ -298,7 +321,7 @@ def _build_pie_chart(df, titulo: str, col_categoria: str, col_valor: str) -> str
     return _to_b64(fig)
 
 
-# ── Tool ───────────────────────────────────────────────────────────────────────
+# ── Ferramenta ─────────────────────────────────────────────────────────────────
 class ChartTool(BaseTool):
     name: str = "gerar_grafico"
     description: str = (
@@ -348,15 +371,19 @@ class ChartTool(BaseTool):
         if not sql or not col_categoria or not col_valor:
             return "Erro: campos 'sql', 'col_categoria' e 'col_valor' sao obrigatorios."
 
-        logger.info("Gerando grafico [%s] fonte=%s: %s", tipo, fonte, titulo)
+        logger.info("[grafico] Gerando [%s] '%s' (fonte=%s). SQL: %s", tipo, titulo, fonte, sql)
+        t0 = time.time()
         try:
             df = mysql_client(sql) if fonte == "mysql" else dremio_client(sql)
         except Exception as e:
-            logger.error("Erro ao executar query do grafico: %s", e)
+            logger.error("[grafico] Erro ao executar query apos %.1fs: %s", time.time() - t0, e)
             return f"Erro ao consultar dados para o grafico: {e}"
 
         if df.empty:
+            logger.info("[grafico] Query retornou 0 linhas em %.1fs — grafico nao gerado.", time.time() - t0)
             return "Nenhum dado encontrado para gerar o grafico."
+
+        logger.info("[grafico] %d linhas obtidas em %.1fs. Renderizando...", len(df), time.time() - t0)
 
         if col_categoria not in df.columns:
             return f"Erro: coluna '{col_categoria}' nao encontrada. Colunas: {list(df.columns)}"
@@ -364,19 +391,21 @@ class ChartTool(BaseTool):
             return f"Erro: coluna '{col_valor}' nao encontrada. Colunas: {list(df.columns)}"
 
         try:
+            t1 = time.time()
             if tipo == "linha":
                 b64 = _build_line_chart(df, titulo, col_categoria, col_valor)
             elif tipo in ("pizza", "pie"):
                 b64 = _build_pie_chart(df, titulo, col_categoria, col_valor)
             else:
                 b64 = _build_bar_chart(df, titulo, col_categoria, col_valor)
+            logger.info("[grafico] Renderizado em %.1fs.", time.time() - t1)
         except Exception as e:
-            logger.error("Erro ao renderizar grafico: %s", e)
+            logger.error("[grafico] Erro ao renderizar: %s", e)
             return f"Erro ao renderizar o grafico: {e}"
 
         key = f"{_CHART_KEY_PREFIX}{uuid.uuid4().hex}"
         _redis.setex(key, _CHART_TTL, b64)
-        logger.info("Grafico armazenado em Redis: %s", key)
+        logger.info("[grafico] Armazenado em Redis: key=%s | total=%.1fs", key, time.time() - t0)
 
         return f"[CHART:{key}|caption:{titulo}]"
 

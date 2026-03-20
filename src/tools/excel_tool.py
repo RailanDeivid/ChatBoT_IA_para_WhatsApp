@@ -3,6 +3,7 @@ import base64
 import io
 import json
 import logging
+import time
 import uuid
 
 import pandas as pd
@@ -11,13 +12,12 @@ from langchain.tools import BaseTool
 
 from src.connectors.dremio import client as dremio_client
 from src.connectors.mysql import client as mysql_client
-from src.config import REDIS_URL
-from src.tools.utils import strip_markdown, extract_json
+from src.config import REDIS_URL, EXCEL_TTL
+from src.tools.utils import extract_json
 
 logger = logging.getLogger(__name__)
 
 _EXCEL_KEY_PREFIX = "excel:"
-_EXCEL_TTL = 120  # seconds
 
 _redis = redis_lib.Redis.from_url(REDIS_URL, decode_responses=True)
 
@@ -53,7 +53,6 @@ class ExcelExportTool(BaseTool):
     )
 
     def _run(self, query: str) -> str:
-        query = strip_markdown(query)
         try:
             params = extract_json(query)
         except (ValueError, Exception) as e:
@@ -69,29 +68,34 @@ class ExcelExportTool(BaseTool):
         if not nome_arquivo.endswith(".xlsx"):
             nome_arquivo += ".xlsx"
 
-        logger.info("Gerando Excel '%s' fonte=%s", nome_arquivo, fonte)
+        logger.info("[excel] Gerando '%s' (fonte=%s). SQL: %s", nome_arquivo, fonte, sql)
+        t0 = time.time()
         try:
             df = mysql_client(sql) if fonte == "mysql" else dremio_client(sql)
         except Exception as e:
-            logger.error("Erro ao executar query do Excel: %s", e)
+            logger.error("[excel] Erro ao executar query apos %.1fs: %s", time.time() - t0, e)
             return f"Erro ao consultar dados para o Excel: {e}"
 
         if df.empty:
+            logger.info("[excel] Query retornou 0 linhas em %.1fs — planilha nao gerada.", time.time() - t0)
             return "Nenhum dado encontrado para gerar a planilha."
 
+        logger.info("[excel] %d linhas obtidas em %.1fs. Gerando arquivo...", len(df), time.time() - t0)
         try:
+            t1 = time.time()
             buf = io.BytesIO()
             with pd.ExcelWriter(buf, engine="openpyxl") as writer:
                 df.to_excel(writer, index=False, sheet_name="Dados")
             buf.seek(0)
             b64 = base64.b64encode(buf.read()).decode()
+            logger.info("[excel] Arquivo gerado em %.1fs (tamanho=%d bytes).", time.time() - t1, len(b64))
         except Exception as e:
-            logger.error("Erro ao gerar arquivo Excel: %s", e)
+            logger.error("[excel] Erro ao gerar arquivo: %s", e)
             return f"Erro ao gerar o arquivo Excel: {e}"
 
         key = f"{_EXCEL_KEY_PREFIX}{uuid.uuid4().hex}"
-        _redis.setex(key, _EXCEL_TTL, b64)
-        logger.info("Excel armazenado em Redis: %s (%d rows)", key, len(df))
+        _redis.setex(key, EXCEL_TTL, b64)
+        logger.info("[excel] Armazenado em Redis: key=%s | %d linhas | TTL=%ds | total=%.1fs", key, len(df), EXCEL_TTL, time.time() - t0)
 
         return f"[EXCEL:{key}|caption:{nome_arquivo}]"
 

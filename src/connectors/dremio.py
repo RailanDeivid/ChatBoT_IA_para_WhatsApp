@@ -6,7 +6,7 @@ from typing import TypeVar, Callable
 import pandas as pd
 import requests
 
-from src.config import DREMIO_HOST, DREMIO_USER, DREMIO_PASSWORD, RETRY_MAX_ATTEMPTS, RETRY_BACKOFF_BASE, DREMIO_POLL_INITIAL, DREMIO_POLL_MAX
+from src.config import DREMIO_HOST, DREMIO_USER, DREMIO_PASSWORD, RETRY_MAX_ATTEMPTS, RETRY_BACKOFF_BASE, DREMIO_POLL_INITIAL, DREMIO_POLL_MAX, DREMIO_MAX_ROWS
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,12 @@ def _get_token(host: str, username: str, password: str) -> str:
         if cached:
             token, created_at = cached
             if time.time() - created_at < _TOKEN_TTL:
+                age = int(time.time() - created_at)
+                logger.debug("Token Dremio obtido do cache (age=%ds)", age)
                 return token
+            logger.info("Token Dremio expirado — renovando...")
+
+        logger.info("Autenticando no Dremio (host=%s, user=%s)...", host, username)
 
         def _do_login():
             res = requests.post(
@@ -49,24 +54,28 @@ def _get_token(host: str, username: str, password: str) -> str:
 
         token = _with_retry(_do_login, "Login Dremio")
         _token_cache[cache_key] = (token, time.time())
+        logger.info("Token Dremio obtido com sucesso.")
         return token
 
 
 def client(sql: str) -> pd.DataFrame:
     """Executa query SQL no Dremio e retorna DataFrame."""
-    logger.info("Obtendo token Dremio...")
+    t_total = time.time()
+    logger.debug("Token Dremio sendo obtido...")
     token = _get_token(DREMIO_HOST, DREMIO_USER, DREMIO_PASSWORD)
     headers = {"Authorization": f"_dremio{token}"}
     base = f"http://{DREMIO_HOST}"
 
-    logger.info("Submetendo query ao Dremio...")
+    logger.info("Submetendo query ao Dremio: %s", sql)
+
     def _do_submit():
         res = requests.post(f"{base}/api/v3/sql", headers=headers, json={"sql": sql}, timeout=30)
         res.raise_for_status()
         return res.json()["id"]
 
     job_id = _with_retry(_do_submit, "Submit query Dremio")
-    logger.info("Job criado: %s. Aguardando conclusão...", job_id)
+    logger.info("Job criado: %s. Aguardando conclusao...", job_id)
+    t_job_start = time.time()
 
     t_start = time.time()
     last_state = None
@@ -91,9 +100,11 @@ def client(sql: str) -> pd.DataFrame:
             last_state = job_state
 
         if job_state == "COMPLETED":
+            logger.info("Job %s concluido em %.1fs.", job_id, time.time() - t_job_start)
             break
         if job_state in ("FAILED", "CANCELED"):
             error = status_res.json().get("errorMessage", "Erro desconhecido")
+            logger.error("Job %s falhou (%s) apos %.1fs: %s", job_id, job_state, time.time() - t_job_start, error)
             raise RuntimeError(f"Job Dremio falhou ({job_state}): {error}")
 
         time.sleep(poll_interval)
@@ -101,14 +112,14 @@ def client(sql: str) -> pd.DataFrame:
     else:
         raise TimeoutError(f"Timeout aguardando job Dremio ({max_wait}s)")
 
-    # Busca resultados com paginação — limite de 20 páginas (10.000 linhas)
+    # Busca resultados com paginação completa (sem teto de páginas)
     all_rows: list = []
     columns: list = []
     offset = 0
     limit = 500
-    MAX_PAGES = 20
+    first_page = True
 
-    for page in range(MAX_PAGES):
+    while True:
         result_res = requests.get(
             f"{base}/api/v3/job/{job_id}/results?offset={offset}&limit={limit}",
             headers=headers,
@@ -117,8 +128,9 @@ def client(sql: str) -> pd.DataFrame:
         result_res.raise_for_status()
         data = result_res.json()
 
-        if page == 0:
+        if first_page:
             columns = [col["name"] for col in data.get("schema", [])]
+            first_page = False
 
         rows = data.get("rows", [])
         if not rows:
@@ -126,5 +138,12 @@ def client(sql: str) -> pd.DataFrame:
 
         all_rows.extend(rows)
         offset += limit
+        logger.debug("Dremio paginacao: %d linhas carregadas (offset=%d)", len(all_rows), offset)
 
+        if len(all_rows) >= DREMIO_MAX_ROWS:
+            logger.warning("Dremio: limite de %d linhas atingido — truncando resultado (job=%s).", DREMIO_MAX_ROWS, job_id)
+            break
+
+    elapsed_total = time.time() - t_total
+    logger.info("Dremio: %d linhas retornadas em %.1fs (job=%s)", len(all_rows), elapsed_total, job_id)
     return pd.DataFrame(all_rows, columns=columns) if all_rows else pd.DataFrame(columns=columns)

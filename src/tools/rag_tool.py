@@ -33,6 +33,15 @@ def _get_vs():
     return _vectorstore
 
 
+def invalidate_vectorstore() -> None:
+    """Força recarga do vectorstore na próxima consulta (chamado após reindexação)."""
+    global _vectorstore, _vs_loaded
+    with _vs_lock:
+        _vectorstore = None
+        _vs_loaded = False
+    logger.info("Cache do vectorstore invalidado — sera recarregado na proxima consulta.")
+
+
 class RAGDocumentQueryTool(BaseTool):
     name: str = "consultar_documentos"
     description: str = (

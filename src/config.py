@@ -71,6 +71,18 @@ RAG_AGENT_MAX_ITERATIONS     = int(os.getenv("RAG_AGENT_MAX_ITERATIONS", "4"))
 RAG_AGENT_MAX_EXECUTION_TIME = int(os.getenv("RAG_AGENT_MAX_EXECUTION_TIME", "60"))
 CONVERSATION_MAX_HISTORY     = int(os.getenv("CONVERSATION_MAX_HISTORY", "5"))
 
+# MySQL
+MYSQL_POOL_SIZE = int(os.getenv("MYSQL_POOL_SIZE", "5"))
+
+# Dremio — limite de segurança para resultados (evita explosão de memória)
+DREMIO_MAX_ROWS = int(os.getenv("DREMIO_MAX_ROWS", "50000"))
+
+# Excel — TTL do arquivo no Redis antes de expirar (segundos)
+EXCEL_TTL = int(os.getenv("EXCEL_TTL", "300"))
+
+# Modelo de fallback (usado se o principal falhar por rate limit ou erro de API)
+OPENAI_FALLBACK_MODEL = os.getenv("FALLBACK_MODEL_NAME", "")
+
 # Controle de acesso
 SQLITE_PATH = os.getenv("SQLITE_PATH", "data/access.db")
 
@@ -81,16 +93,22 @@ UNAUTHORIZED_MESSAGE = os.getenv(
 
 # Formato: TELEFONE:NOME:SETOR:CASA:admin|user (separados por vírgula)
 def _parse_seed_users(raw: str) -> list[dict]:
+    import logging
+    _log = logging.getLogger(__name__)
     users = []
     for entry in raw.split(","):
-        parts = [p.strip() for p in entry.strip().split(":")]
+        entry = entry.strip()
+        if not entry:
+            continue
+        parts = [p.strip() for p in entry.split(":")]
         if len(parts) < 4:
+            _log.warning("SEED_USERS: entrada ignorada por formato invalido (esperado TELEFONE:NOME:CARGO:CASA): %r", entry)
             continue
         users.append({
             "telefone": parts[0],
             "nome":     parts[1],
             "cargo":    parts[2],
-            "casa":    parts[3],
+            "casa":     parts[3],
             "is_admin": 1 if len(parts) >= 5 and parts[4].lower() == "admin" else 0,
         })
     return users

@@ -1,3 +1,4 @@
+import concurrent.futures
 import logging
 import re
 import threading
@@ -12,6 +13,7 @@ import redis
 
 from src.config import (
     OPENAI_API_KEY, OPENAI_MODEL_NAME, OPENAI_MODEL_TEMPERATURE, OPENAI_BASE_URL,
+    OPENAI_FALLBACK_MODEL,
     SQL_AGENT_MAX_ITERATIONS, SQL_AGENT_MAX_EXECUTION_TIME,
     RAG_AGENT_MAX_ITERATIONS, RAG_AGENT_MAX_EXECUTION_TIME,
     CONVERSATION_MAX_HISTORY,
@@ -35,7 +37,7 @@ def _cache_get(session_id: str, message: str) -> str | None:
     key = f"cache:{session_id}:{message.lower().strip()}"
     try:
         return _redis.get(key)
-    except Exception:
+    except redis.RedisError:
         return None
 
 
@@ -43,14 +45,15 @@ def _cache_set(session_id: str, message: str, response: str) -> None:
     key = f"cache:{session_id}:{message.lower().strip()}"
     try:
         _redis.setex(key, QUERY_CACHE_TTL, response)
-    except Exception:
+        logger.info("Cache gravado para %s (TTL=%ds): %.60s", session_id, QUERY_CACHE_TTL, message)
+    except redis.RedisError:
         pass
 
 
 def _metric_inc(key: str) -> None:
     try:
         _redis.incr(f"metrics:{key}")
-    except Exception:
+    except redis.RedisError:
         pass
 
 
@@ -91,11 +94,20 @@ def _strip_emojis(text: str) -> str:
 _model: ChatOpenAI | None = None
 _model_lock = threading.Lock()
 
+_fallback_model: ChatOpenAI | None = None
+_fallback_model_lock = threading.Lock()
+
 _sql_executor: AgentExecutor | None = None
 _sql_executor_lock = threading.Lock()
 
 _rag_executor: AgentExecutor | None = None
 _rag_executor_lock = threading.Lock()
+
+_fallback_sql_executor: AgentExecutor | None = None
+_fallback_sql_lock = threading.Lock()
+
+_fallback_rag_executor: AgentExecutor | None = None
+_fallback_rag_lock = threading.Lock()
 
 
 def _get_model() -> ChatOpenAI:
@@ -112,25 +124,63 @@ def _get_model() -> ChatOpenAI:
     return _model
 
 
+def _get_fallback_model() -> ChatOpenAI | None:
+    """Retorna modelo de fallback se FALLBACK_MODEL_NAME estiver configurado."""
+    if not OPENAI_FALLBACK_MODEL:
+        return None
+    global _fallback_model
+    if _fallback_model is None:
+        with _fallback_model_lock:
+            if _fallback_model is None:
+                logger.info("Inicializando modelo de fallback: %s", OPENAI_FALLBACK_MODEL)
+                _fallback_model = ChatOpenAI(
+                    model=OPENAI_FALLBACK_MODEL,
+                    temperature=OPENAI_MODEL_TEMPERATURE,
+                    base_url=OPENAI_BASE_URL,
+                    api_key=OPENAI_API_KEY,
+                )
+    return _fallback_model
+
+
+def _make_sql_executor(model: ChatOpenAI) -> AgentExecutor:
+    tools = [DremioSalesQueryTool(), DremioDeliveryQueryTool(), DremioPaymentQueryTool(), DremioEstornosQueryTool(), DremioMetasQueryTool(), MySQLPurchasesQueryTool(), ChartTool(), ExcelExportTool()]
+    agent = create_react_agent(llm=model, tools=tools, prompt=react_prompt)
+    return AgentExecutor(
+        agent=agent,
+        tools=tools,
+        verbose=True,
+        handle_parsing_errors=(
+            "Se nao precisar usar ferramentas, responda com: "
+            "Final Answer: [sua resposta]. Nunca responda sem usar esse formato."
+        ),
+        max_iterations=SQL_AGENT_MAX_ITERATIONS,
+        max_execution_time=SQL_AGENT_MAX_EXECUTION_TIME,
+    )
+
+
+def _make_rag_executor(model: ChatOpenAI) -> AgentExecutor:
+    tools = [RAGDocumentQueryTool()]
+    agent = create_react_agent(llm=model, tools=tools, prompt=rag_prompt)
+    return AgentExecutor(
+        agent=agent,
+        tools=tools,
+        verbose=True,
+        handle_parsing_errors=(
+            "Se nao encontrar a informacao, responda com: "
+            "Final Answer: Nao encontrei essa informacao nos documentos disponíveis."
+        ),
+        max_iterations=RAG_AGENT_MAX_ITERATIONS,
+        max_execution_time=RAG_AGENT_MAX_EXECUTION_TIME,
+    )
+
+
 def _get_sql_executor() -> AgentExecutor:
     global _sql_executor
     if _sql_executor is None:
         with _sql_executor_lock:
             if _sql_executor is None:
                 logger.info("Inicializando agente SQL...")
-                tools = [DremioSalesQueryTool(), DremioDeliveryQueryTool(), DremioPaymentQueryTool(), DremioEstornosQueryTool(), DremioMetasQueryTool(), MySQLPurchasesQueryTool(), ChartTool(), ExcelExportTool()]
-                agent = create_react_agent(llm=_get_model(), tools=tools, prompt=react_prompt)
-                _sql_executor = AgentExecutor(
-                    agent=agent,
-                    tools=tools,
-                    verbose=True,
-                    handle_parsing_errors=(
-                        "Se nao precisar usar ferramentas, responda com: "
-                        "Final Answer: [sua resposta]. Nunca responda sem usar esse formato."
-                    ),
-                    max_iterations=SQL_AGENT_MAX_ITERATIONS,
-                    max_execution_time=SQL_AGENT_MAX_EXECUTION_TIME,
-                )
+                _sql_executor = _make_sql_executor(_get_model())
                 logger.info("Agente SQL pronto.")
     return _sql_executor
 
@@ -141,21 +191,35 @@ def _get_rag_executor() -> AgentExecutor:
         with _rag_executor_lock:
             if _rag_executor is None:
                 logger.info("Inicializando agente RAG...")
-                tools = [RAGDocumentQueryTool()]
-                agent = create_react_agent(llm=_get_model(), tools=tools, prompt=rag_prompt)
-                _rag_executor = AgentExecutor(
-                    agent=agent,
-                    tools=tools,
-                    verbose=True,
-                    handle_parsing_errors=(
-                        "Se nao encontrar a informacao, responda com: "
-                        "Final Answer: Nao encontrei essa informacao nos documentos disponíveis."
-                    ),
-                    max_iterations=RAG_AGENT_MAX_ITERATIONS,
-                    max_execution_time=RAG_AGENT_MAX_EXECUTION_TIME,
-                )
+                _rag_executor = _make_rag_executor(_get_model())
                 logger.info("Agente RAG pronto.")
     return _rag_executor
+
+
+def _get_fallback_sql_executor() -> AgentExecutor | None:
+    fb = _get_fallback_model()
+    if not fb:
+        return None
+    global _fallback_sql_executor
+    if _fallback_sql_executor is None:
+        with _fallback_sql_lock:
+            if _fallback_sql_executor is None:
+                logger.info("Inicializando agente SQL de fallback...")
+                _fallback_sql_executor = _make_sql_executor(fb)
+    return _fallback_sql_executor
+
+
+def _get_fallback_rag_executor() -> AgentExecutor | None:
+    fb = _get_fallback_model()
+    if not fb:
+        return None
+    global _fallback_rag_executor
+    if _fallback_rag_executor is None:
+        with _fallback_rag_lock:
+            if _fallback_rag_executor is None:
+                logger.info("Inicializando agente RAG de fallback...")
+                _fallback_rag_executor = _make_rag_executor(fb)
+    return _fallback_rag_executor
 
 
 def _complete_dates(message: str) -> str:
@@ -234,40 +298,69 @@ def _is_error_response(response: str) -> bool:
 
 def _save_to_history(message: str, response: str, session_id: str) -> None:
     if _is_error_response(response):
+        logger.info("Resposta de erro — nao salva no historico de %s.", session_id)
         return
     history = get_session_history(session_id)
     history.add_user_message(message)
     history.add_ai_message(response)
     _trim_history(history)
+    logger.debug("Historico de %s atualizado (%d mensagens).", session_id, len(history.messages))
 
 
 def _run_sql_agent(message: str, session_id: str, sender_name: str) -> str:
     history = get_session_history(session_id)
+    history_len = len(history.messages)
+    logger.info("[sql-agent] session=%s | historico=%d msgs | pergunta: %s", session_id, history_len, message)
     invoke_input = _build_invoke_input(message, history, sender_name)
     try:
         result = _get_sql_executor().invoke(invoke_input)
         output = result.get('output', '')
         if not output or 'Agent stopped' in output or 'iteration limit' in output.lower():
-            logger.warning("Agente SQL parou por limite. Output: %r", output)
+            logger.warning("[sql-agent] Parou por limite de iteracoes. Output: %r", output)
             return 'Desculpe, nao consegui processar sua pergunta a tempo. Tente reformular ou seja mais especifico.'
+        logger.info("[sql-agent] Resposta gerada (%.120s%s)", output, '...' if len(output) > 120 else '')
         return output
     except Exception as e:
-        logger.error("Erro no agente SQL: %s", e)
+        logger.error("[sql-agent] Excecao inesperada: %s — tentando fallback", e)
+        fb = _get_fallback_sql_executor()
+        if fb:
+            try:
+                logger.info("[sql-agent] Usando modelo de fallback...")
+                result = fb.invoke(invoke_input)
+                output = result.get('output', '')
+                if output and 'Agent stopped' not in output:
+                    logger.info("[sql-agent] Fallback respondeu.")
+                    return output
+            except Exception as e2:
+                logger.error("[sql-agent] Fallback tambem falhou: %s", e2)
         return 'Desculpe, ocorreu um erro ao processar sua pergunta.'
 
 
 def _run_rag_agent(message: str, session_id: str, sender_name: str) -> str:
     history = get_session_history(session_id)
+    logger.info("[rag-agent] session=%s | pergunta: %s", session_id, message)
     invoke_input = _build_invoke_input(message, history, sender_name)
     try:
         result = _get_rag_executor().invoke(invoke_input)
         output = result.get('output', '')
         if not output or 'Agent stopped' in output:
-            logger.warning("Agente RAG parou por limite. Output: %r", output)
+            logger.warning("[rag-agent] Parou por limite. Output: %r", output)
             return 'Nao encontrei informacoes nos documentos disponíveis.'
+        logger.info("[rag-agent] Resposta gerada (%.120s%s)", output, '...' if len(output) > 120 else '')
         return output
     except Exception as e:
-        logger.error("Erro no agente RAG: %s", e)
+        logger.error("[rag-agent] Excecao inesperada: %s — tentando fallback", e)
+        fb = _get_fallback_rag_executor()
+        if fb:
+            try:
+                logger.info("[rag-agent] Usando modelo de fallback...")
+                result = fb.invoke(invoke_input)
+                output = result.get('output', '')
+                if output and 'Agent stopped' not in output:
+                    logger.info("[rag-agent] Fallback respondeu.")
+                    return output
+            except Exception as e2:
+                logger.error("[rag-agent] Fallback tambem falhou: %s", e2)
         return 'Desculpe, ocorreu um erro ao consultar os documentos.'
 
 
@@ -322,9 +415,21 @@ def route_and_invoke(message: str, session_id: str, sender_name: str = "", on_th
 
     # Fast-path: saudações simples não precisam do router nem do agente
     if _GREETING_RE.match(message):
-        logger.info("Saudacao detectada para %s — fast-path geral", session_id)
         _metric_inc("category:geral")
-        response = _strip_emojis(_run_general_response(message, session_id, sender_name))
+        history = get_session_history(session_id)
+        if history.messages:
+            # Usuário retornando — boas-vindas calorosa sem chamar LLM
+            logger.info("Saudacao de retorno para %s — fast-path welcome-back", session_id)
+            first_name = sender_name.split()[0] if sender_name else ""
+            if first_name:
+                response = f"Oi, {first_name}! Que bom que voce voltou. Como posso te ajudar agora?"
+            else:
+                response = "Que bom que voce voltou! Como posso te ajudar agora?"
+        else:
+            # Usuário novo — LLM faz a apresentação
+            logger.info("Saudacao de novo usuario para %s — fast-path geral", session_id)
+            response = _run_general_response(message, session_id, sender_name)
+        response = _strip_emojis(response)
         _save_to_history(message, response, session_id)
         return response
 
@@ -370,17 +475,20 @@ def route_and_invoke(message: str, session_id: str, sender_name: str = "", on_th
         if response.startswith("Desculpe") or "Nao encontrei" in response:
             _metric_inc("errors:rag")
     elif category == "ambos":
-        sql_resp = _run_sql_agent(message, session_id, sender_name)
-        docs_resp = _run_rag_agent(message, session_id, sender_name)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            sql_future = pool.submit(_run_sql_agent, message, session_id, sender_name)
+            rag_future = pool.submit(_run_rag_agent, message, session_id, sender_name)
+            sql_resp = sql_future.result()
+            docs_resp = rag_future.result()
         response = f"{sql_resp}\n\n---\n\n{docs_resp}"
         elapsed = time.time() - t_start
-        logger.info("Agente AMBOS respondeu em %.1fs", elapsed)
+        logger.info("Agente AMBOS respondeu em %.1fs (paralelo)", elapsed)
     else:  # geral
         response = _run_general_response(message, session_id, sender_name)
 
     response = _strip_emojis(response)
 
-    if category != "geral" and not response.startswith("Desculpe"):
+    if category != "geral" and not _is_error_response(response):
         _cache_set(session_id, message, response)
 
     _save_to_history(message, response, session_id)
