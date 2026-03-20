@@ -77,6 +77,9 @@ MYSQL_POOL_SIZE = int(os.getenv("MYSQL_POOL_SIZE", "5"))
 # Dremio — limite de segurança para resultados (evita explosão de memória)
 DREMIO_MAX_ROWS = int(os.getenv("DREMIO_MAX_ROWS", "50000"))
 
+# Dremio — máximo de queries simultâneas (evita fila no Dremio)
+DREMIO_MAX_CONCURRENT = int(os.getenv("DREMIO_MAX_CONCURRENT", "3"))
+
 # Excel — TTL do arquivo no Redis antes de expirar (segundos)
 EXCEL_TTL = int(os.getenv("EXCEL_TTL", "300"))
 

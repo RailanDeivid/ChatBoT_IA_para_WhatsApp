@@ -79,7 +79,7 @@ def client(sql: str) -> pd.DataFrame:
 
     t_start = time.time()
     last_state = None
-    max_wait = 300
+    max_wait = 360
     poll_interval = DREMIO_POLL_INITIAL
 
     while time.time() - t_start < max_wait:

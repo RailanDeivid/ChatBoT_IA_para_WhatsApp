@@ -21,7 +21,7 @@ from src.config import (
 )
 from src.memory import get_session_history
 from src.prompts import react_prompt, rag_prompt, router_prompt, general_prompt
-from src.tools.dremio_tools import DremioSalesQueryTool, DremioDeliveryQueryTool, DremioPaymentQueryTool, DremioEstornosQueryTool, DremioMetasQueryTool
+from src.tools.dremio_tools import DremioSalesQueryTool, DremioDeliveryQueryTool, DremioPaymentQueryTool, DremioEstornosQueryTool, DremioMetasQueryTool, current_sender
 from src.tools.mysql_tools import MySQLPurchasesQueryTool
 from src.tools.rag_tool import RAGDocumentQueryTool
 from src.tools.chart_tool import ChartTool
@@ -308,6 +308,7 @@ def _save_to_history(message: str, response: str, session_id: str) -> None:
 
 
 def _run_sql_agent(message: str, session_id: str, sender_name: str) -> str:
+    current_sender.set(session_id)
     history = get_session_history(session_id)
     history_len = len(history.messages)
     logger.info("[sql-agent] session=%s | historico=%d msgs | pergunta: %s", session_id, history_len, message)

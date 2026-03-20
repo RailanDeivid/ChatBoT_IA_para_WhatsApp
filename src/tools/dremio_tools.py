@@ -1,31 +1,75 @@
 import asyncio
 import logging
+import threading
 import time
+from contextvars import ContextVar
 
 from langchain.tools import BaseTool
 
 from src.connectors.dremio import client
+from src.config import DREMIO_MAX_CONCURRENT
 from src.tools.fantasia_abreviacao import ABREVIACAO_TO_FANTASIA
 from src.tools.utils import strip_markdown, format_df
 
 logger = logging.getLogger(__name__)
 
+# Número do remetente atual — setado em chains.py antes de invocar o agente
+current_sender: ContextVar[str] = ContextVar("current_sender", default="")
+
+# Semáforo para limitar queries simultâneas no Dremio
+_dremio_semaphore = threading.Semaphore(DREMIO_MAX_CONCURRENT)
+
 
 def _run_dremio_query(label: str, query: str) -> str:
     """Executa query no Dremio e retorna resultado formatado. Compartilhado por todas as ferramentas Dremio."""
     query = strip_markdown(query)
-    logger.info("[%s] Executando query: %s", label, query)
-    t0 = time.time()
+
+    # Se o semáforo estiver cheio, avisa o usuário que está na fila
+    if not _dremio_semaphore.acquire(blocking=False):
+        sender = current_sender.get()
+        if sender:
+            try:
+                from src.integrations.evolution_api import send_whatsapp_message
+                send_whatsapp_message(sender, "Ha outras consultas em andamento. Sua consulta sera processada em breve, aguarde.")
+            except Exception as e:
+                logger.warning("[%s] Falha ao notificar usuario sobre fila: %s", label, e)
+        logger.info("[%s] Aguardando vaga no semaforo Dremio (max_concurrent=%d)...", label, DREMIO_MAX_CONCURRENT)
+        _dremio_semaphore.acquire(blocking=True)
+
     try:
-        df = client(query)
-        if df.empty:
-            logger.info("[%s] Query retornou 0 linhas em %.1fs.", label, time.time() - t0)
-            return "Nenhum resultado encontrado."
-        logger.info("[%s] %d linhas retornadas em %.1fs.", label, len(df), time.time() - t0)
-        return format_df(df)
-    except Exception as e:
-        logger.error("[%s] ERRO apos %.1fs — %s: %s", label, time.time() - t0, type(e).__name__, e)
-        return f"Erro ao consultar dados: {str(e)}"
+        return _execute_dremio_query(label, query)
+    finally:
+        _dremio_semaphore.release()
+
+
+def _execute_dremio_query(label: str, query: str) -> str:
+    for attempt in range(1, 3):
+        logger.info("[%s] Executando query (tentativa %d/2): %s", label, attempt, query)
+        t0 = time.time()
+        try:
+            df = client(query)
+            if df.empty:
+                logger.info("[%s] Query retornou 0 linhas em %.1fs.", label, time.time() - t0)
+                return "Nenhum resultado encontrado."
+            logger.info("[%s] %d linhas retornadas em %.1fs.", label, len(df), time.time() - t0)
+            return format_df(df)
+        except TimeoutError as e:
+            logger.warning("[%s] Timeout na tentativa %d/2 apos %.1fs — %s", label, attempt, time.time() - t0, e)
+            if attempt == 1:
+                sender = current_sender.get()
+                if sender:
+                    try:
+                        from src.integrations.evolution_api import send_whatsapp_message
+                        send_whatsapp_message(sender, "A consulta esta demorando mais que o esperado. Tentando novamente...")
+                    except Exception as notify_err:
+                        logger.warning("[%s] Falha ao notificar usuario sobre retry: %s", label, notify_err)
+                logger.info("[%s] Tentando novamente...", label)
+                continue
+            logger.error("[%s] Timeout na segunda tentativa — desistindo.", label)
+            return "Tive um problema tecnico ao buscar essas informacoes. Tente novamente em instantes."
+        except Exception as e:
+            logger.error("[%s] ERRO apos %.1fs — %s: %s", label, time.time() - t0, type(e).__name__, e)
+            return f"Erro ao consultar dados: {str(e)}"
 
 # Hint para o agente usar o código abreviado exato no campo codigo_casa
 _CODIGO_CASA_HINT = (
