@@ -7,7 +7,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 
-from src.config import RAG_FILES_DIR, VECTOR_STORE_PATH
+from src.config import RAG_FILES_DIR, VECTOR_STORE_PATH, WHISPER_API_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +39,13 @@ def get_vectorstore():
         splits = _splitter.split_documents(docs)
         return Chroma.from_documents(
             documents=splits,
-            embedding=OpenAIEmbeddings(),
+            embedding=OpenAIEmbeddings(api_key=WHISPER_API_KEY),
             persist_directory=VECTOR_STORE_PATH,
         )
     # Abre índice existente se o diretório já tiver dados
     if os.path.isdir(VECTOR_STORE_PATH) and os.listdir(VECTOR_STORE_PATH):
         return Chroma(
-            embedding_function=OpenAIEmbeddings(),
+            embedding_function=OpenAIEmbeddings(api_key=WHISPER_API_KEY),
             persist_directory=VECTOR_STORE_PATH,
         )
     return None
@@ -76,14 +76,14 @@ def reload_vectorstore() -> tuple[bool, str]:
         # Adiciona ao índice existente ou cria novo
         if os.path.isdir(VECTOR_STORE_PATH) and os.listdir(VECTOR_STORE_PATH):
             vs = Chroma(
-                embedding_function=OpenAIEmbeddings(),
+                embedding_function=OpenAIEmbeddings(api_key=WHISPER_API_KEY),
                 persist_directory=VECTOR_STORE_PATH,
             )
             vs.add_documents(splits)
         else:
             Chroma.from_documents(
                 documents=splits,
-                embedding=OpenAIEmbeddings(),
+                embedding=OpenAIEmbeddings(api_key=WHISPER_API_KEY),
                 persist_directory=VECTOR_STORE_PATH,
             )
 

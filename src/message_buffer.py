@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import random
 import re
 
 import redis.asyncio as redis
@@ -9,7 +10,7 @@ from src.integrations.evolution_api import (
     send_whatsapp_message, send_whatsapp_image, send_whatsapp_document,
     send_whatsapp_presence, send_whatsapp_reaction,
 )
-from src.chains import route_and_invoke
+from src.chains import route_and_invoke, generate_thinking_message
 
 _CHART_RE = re.compile(r'\[CHART:(chart:[a-f0-9]+)\|caption:([^\]]*)\]')
 _EXCEL_RE = re.compile(r'\[EXCEL:(excel:[a-f0-9]+)\|caption:([^\]]*)\]')
@@ -110,11 +111,12 @@ async def handle_debounce(chat_id: str, sender_name: str = "") -> None:
             stop_typing = asyncio.Event()
             typing_task = asyncio.create_task(_keep_typing(chat_id, loop, stop_typing))
 
+            thinking_msg = await loop.run_in_executor(
+                None, lambda: generate_thinking_message(full_message)
+            )
+
             def _on_thinking():
-                send_whatsapp_message(
-                    number=chat_id,
-                    text="Pode levar alguns minutos, mas ja vou trazer essas informacoes para voce.",
-                )
+                send_whatsapp_message(number=chat_id, text=thinking_msg)
 
             try:
                 ai_response = await loop.run_in_executor(

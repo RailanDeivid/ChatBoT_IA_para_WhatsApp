@@ -365,6 +365,24 @@ def _run_rag_agent(message: str, session_id: str, sender_name: str) -> str:
         return 'Desculpe, ocorreu um erro ao consultar os documentos.'
 
 
+def generate_thinking_message(message: str) -> str:
+    """Gera uma mensagem de espera contextual e amigavel baseada na pergunta do usuario."""
+    try:
+        prompt = (
+            "Voce e o NINOIA, assistente interno de uma empresa de bares e restaurantes. "
+            "O usuario acabou de fazer a seguinte pergunta:\n"
+            f'"{message}"\n\n'
+            "Escreva UMA frase curta, amigavel e natural em portugues informando que voce ja vai buscar essa informacao. "
+            "Seja caloroso, direto e varie o jeito de falar. "
+            "NUNCA use emojis. NUNCA use mais de uma frase. NUNCA mencione tabelas, banco de dados ou tecnologia."
+        )
+        result = _get_model().invoke(prompt)
+        return result.content.strip()
+    except Exception as e:
+        logger.warning("Falha ao gerar mensagem de espera dinamica: %s", e)
+        return "Ja vou buscar essa informacao para voce."
+
+
 def _run_general_response(message: str, session_id: str, sender_name: str) -> str:
     history = get_session_history(session_id)
     invoke_input = _build_invoke_input(message, history, sender_name)
@@ -417,20 +435,8 @@ def route_and_invoke(message: str, session_id: str, sender_name: str = "", on_th
     # Fast-path: saudações simples não precisam do router nem do agente
     if _GREETING_RE.match(message):
         _metric_inc("category:geral")
-        history = get_session_history(session_id)
-        if history.messages:
-            # Usuário retornando — boas-vindas calorosa sem chamar LLM
-            logger.info("Saudacao de retorno para %s — fast-path welcome-back", session_id)
-            first_name = sender_name.split()[0] if sender_name else ""
-            if first_name:
-                response = f"Oi, {first_name}! Que bom que voce voltou. Como posso te ajudar agora?"
-            else:
-                response = "Que bom que voce voltou! Como posso te ajudar agora?"
-        else:
-            # Usuário novo — LLM faz a apresentação
-            logger.info("Saudacao de novo usuario para %s — fast-path geral", session_id)
-            response = _run_general_response(message, session_id, sender_name)
-        response = _strip_emojis(response)
+        logger.info("Saudacao de %s — gerando resposta via LLM", session_id)
+        response = _strip_emojis(_run_general_response(message, session_id, sender_name))
         _save_to_history(message, response, session_id)
         return response
 
