@@ -86,70 +86,59 @@ class TestClassifyIntent:
             assert _classify_intent("algo") == "sql"
 
 
-class TestWelcomeBack:
-    """Testa o comportamento de boas-vindas para usuários retornando."""
+class TestGreetingBehavior:
+    """Testa o comportamento de saudações no route_and_invoke."""
 
-    def _history_com_mensagens(self):
-        h = MagicMock()
-        h.messages = [MagicMock()]  # simula histórico existente
-        return h
-
-    def _history_vazio(self):
-        h = MagicMock()
-        h.messages = []
-        return h
-
-    def _patch_deps(self, history):
+    def _patch_base(self):
         return (
-            patch("src.chains.get_session_history", return_value=history),
             patch("src.chains._save_to_history"),
             patch("src.chains._metric_inc"),
         )
 
-    def test_saudacao_usuario_retornando_com_nome(self):
-        history = self._history_com_mensagens()
-        p1, p2, p3 = self._patch_deps(history)
-        with p1, p2, p3:
-            result = route_and_invoke("oi", session_id="123", sender_name="Railan Silva")
-
-        assert "Railan" in result
-        assert "voltou" in result.lower()
-
-    def test_saudacao_usuario_retornando_sem_nome(self):
-        history = self._history_com_mensagens()
-        p1, p2, p3 = self._patch_deps(history)
-        with p1, p2, p3:
-            result = route_and_invoke("oi", session_id="123", sender_name="")
-
-        assert "voltou" in result.lower()
-
-    def test_saudacao_usuario_retornando_nao_chama_llm(self):
-        history = self._history_com_mensagens()
-        p1, p2, p3 = self._patch_deps(history)
-        with p1, p2, p3, patch("src.chains._run_general_response") as mock_llm:
-            route_and_invoke("oi", session_id="123", sender_name="Railan")
-
-        mock_llm.assert_not_called()
-
-    def test_saudacao_usuario_novo_chama_llm_para_apresentacao(self):
-        history = self._history_vazio()
-        p1, p2, p3 = self._patch_deps(history)
-        with p1, p2, p3, patch("src.chains._run_general_response", return_value="Ola! NINOIA...") as mock_llm:
+    def test_saudacao_chama_run_general_response(self):
+        """Saudação sempre chama _run_general_response, independente do histórico."""
+        p1, p2 = self._patch_base()
+        with p1, p2, patch("src.chains._run_general_response", return_value="Ola!") as mock_llm:
             route_and_invoke("oi", session_id="123", sender_name="Railan")
 
         mock_llm.assert_called_once()
 
-    def test_pergunta_direta_retornando_segue_fluxo_normal(self):
-        """Se o usuário retornando não manda saudação, não deve receber welcome-back."""
-        history = self._history_com_mensagens()
-        p1, p2, p3 = self._patch_deps(history)
-        with p1, p2, p3, \
+    def test_saudacao_nao_chama_classify_intent(self):
+        """Saudação não passa pelo router — _classify_intent não deve ser chamado."""
+        p1, p2 = self._patch_base()
+        with p1, p2, \
+             patch("src.chains._run_general_response", return_value="Ola!"), \
+             patch("src.chains._classify_intent") as mock_router:
+            route_and_invoke("oi", session_id="123", sender_name="Railan")
+
+        mock_router.assert_not_called()
+
+    def test_saudacao_retorna_resposta_do_llm(self):
+        """Saudação retorna a resposta de _run_general_response (sem emojis)."""
+        p1, p2 = self._patch_base()
+        with p1, p2, patch("src.chains._run_general_response", return_value="Ola, tudo bem!"):
+            result = route_and_invoke("olá", session_id="123", sender_name="")
+
+        assert result == "Ola, tudo bem!"
+
+    def test_saudacao_com_emoji_e_removido(self):
+        """Emojis na resposta de saudação são removidos pelo _strip_emojis."""
+        p1, p2 = self._patch_base()
+        with p1, p2, patch("src.chains._run_general_response", return_value="Ola! 😊 Como posso ajudar?"):
+            result = route_and_invoke("oi", session_id="123", sender_name="")
+
+        assert "😊" not in result
+
+    def test_pergunta_direta_nao_e_saudacao_vai_para_agente(self):
+        """Pergunta de dados não é saudação — deve passar pelo router e ir ao agente SQL."""
+        p1, p2 = self._patch_base()
+        with p1, p2, \
              patch("src.chains._cache_get", return_value=None), \
+             patch("src.chains.get_session_history", return_value=MagicMock(messages=[])), \
              patch("src.chains._classify_intent", return_value="sql"), \
              patch("src.chains._run_sql_agent", return_value="resultado sql") as mock_sql, \
-             patch("src.chains._cache_set"), \
-             patch("src.chains.on_thinking", create=True):
+             patch("src.chains._cache_set"):
             result = route_and_invoke("qual o faturamento de hoje?", session_id="123", sender_name="Railan")
 
         mock_sql.assert_called_once()
-        assert "voltou" not in result.lower()
+        assert result == "resultado sql"

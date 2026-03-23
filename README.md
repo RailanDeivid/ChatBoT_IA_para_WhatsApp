@@ -17,57 +17,42 @@ Assistente inteligente integrado ao WhatsApp com arquitetura **multi-agente**: u
 ## Índice
 
 - [Demonstração](#perguntas-sobre-compras)
-- [Fluxo Completo — Do WhatsApp à Resposta](#fluxo-completo--do-whatsapp-à-resposta)
+- [Fluxo Completo](#fluxo-completo--do-whatsapp-à-resposta)
 - [Estrutura do projeto](#estrutura-do-projeto)
 - [Arquitetura Multi-Agente](#arquitetura-multi-agente)
 - [Serviços Docker](#serviços-docker)
 - [Controle de Acesso](#controle-de-acesso)
-  - [Comandos admin (via WhatsApp)](#comandos-admin-via-whatsapp)
 - [Gerenciamento de Documentos (RAG)](#gerenciamento-de-documentos-rag)
-- [Suporte a áudio (Whisper)](#suporte-a-áudio-whisper)
+- [Endpoints HTTP](#endpoints-http)
 - [Ferramentas dos agentes](#ferramentas-dos-agentes)
-  - [consultar\_vendas](#consultar_vendas--agente-sql--dremio)
-  - [consultar\_delivery](#consultar_delivery--agente-sql--dremio)
-  - [consultar\_formas\_pagamento](#consultar_formas_pagamento--agente-sql--dremio)
-  - [consultar\_estornos](#consultar_estornos--agente-sql--dremio)
-  - [consultar\_metas](#consultar_metas--agente-sql--dremio)
-  - [consultar\_compras](#consultar_compras--agente-sql--mysql)
-  - [exportar\_excel](#exportar_excel--agente-sql--dremiomysql)
-  - [consultar\_documentos](#consultar_documentos--agente-rag--chroma)
 - [Configuração (.env)](#configuração-env)
 - [Subir o projeto](#subir-o-projeto)
-- [Logs de startup esperados](#logs-de-startup-esperados)
 - [Personalidade e regras dos agentes](#personalidade-e-regras-dos-agentes)
-- [Modelos OpenAI compatíveis](#modelos-openai-compatíveis)
+- [Modelos compatíveis](#modelos-compatíveis)
 - [Custo por interação (estimativa)](#custo-por-interação-estimativa)
 
 ---
 
 ## Perguntas sobre Compras
-### Interação por Texto :
+### Interação por Texto
 
 <img src="image/image-1.png" width="800" alt="Diagrama do fluxo">
-
 <img src="image/image-2.png" width="800" alt="Diagrama do fluxo">
-
 <img src="image/image-3.png" width="800" alt="Diagrama do fluxo">
 
-### Interação por Audio:
+### Interação por Áudio
 <img src="image/image.png" width="800" alt="Diagrama do fluxo">
 
-## Perguntas sobre Vendas:
-### Interação por Texto :
+## Perguntas sobre Vendas
+### Interação por Texto
 <img src="image/image-4.png" width="800" alt="Diagrama do fluxo">
-
 <img src="image/image-6.png" width="800" alt="Diagrama do fluxo">
-
 <img src="image/image-7.png" width="800" alt="Diagrama do fluxo">
 
-### Interação por Audio:
+### Interação por Áudio
 <img src="image/image-5.png" width="800" alt="Diagrama do fluxo">
 
-
-## Perguntas sobre Politicas\Regras:
+## Perguntas sobre Políticas\Regras
 <img src="image/image-8.png" width="800" alt="Diagrama do fluxo">
 
 ---
@@ -91,28 +76,27 @@ whatsapp-agent/
 │   ├── config.py                   # Leitura das variáveis de ambiente (.env)
 │   ├── memory.py                   # Histórico de conversa via Redis (TTL 24h)
 │   ├── message_buffer.py           # Buffer de mensagens com debounce + indicador de digitando + reações
-│   ├── prompts.py                  # Prompts: ReAct SQL (NINOIA), ReAct RAG, Router, Geral (LLM direto)
-│   ├── vectorstore.py              # RAG: indexação de PDFs/TXTs via Chroma + OpenAI Embeddings + reload dinâmico
+│   ├── prompts.py                  # Prompts: ReAct SQL, ReAct RAG, Router, Geral
+│   ├── vectorstore.py              # RAG: indexação de PDFs/TXTs via Chroma + OpenAI Embeddings
 │   ├── docs/
 │   │   └── architecture.svg        # Diagrama do fluxo completo
 │   ├── connectors/
 │   │   ├── dremio.py               # Conector REST API Dremio → DataFrame
 │   │   └── mysql.py                # Conector MySQL → DataFrame (lazy pool)
 │   ├── tools/
-│   │   ├── dremio_tools.py         # Tools LangChain: consultar_vendas, consultar_delivery, consultar_formas_pagamento, consultar_estornos, consultar_metas (Dremio)
-│   │   ├── mysql_tools.py          # Tool LangChain: consultar_compras (MySQL)
-│   │   ├── chart_tool.py           # Tool LangChain: gerar_grafico — gráficos PNG via matplotlib/seaborn
-│   │   ├── excel_tool.py           # Tool LangChain: exportar_excel — planilha .xlsx via pandas/openpyxl
-│   │   ├── rag_tool.py             # Tool LangChain: consultar_documentos (Chroma) + invalidate_vectorstore()
+│   │   ├── dremio_tools.py         # Tools: consultar_vendas, consultar_delivery, consultar_formas_pagamento, consultar_estornos, consultar_metas
+│   │   ├── mysql_tools.py          # Tool: consultar_compras
+│   │   ├── chart_tool.py           # Tool: gerar_grafico — gráficos PNG via matplotlib/seaborn
+│   │   ├── excel_tool.py           # Tool: exportar_excel — planilha .xlsx via pandas/openpyxl
+│   │   ├── rag_tool.py             # Tool: consultar_documentos (Chroma)
 │   │   ├── utils.py                # strip_markdown — remove blocos sql do output do agente
 │   │   └── fantasia_abreviacao.py  # Mapeamento abreviação → nome fantasia do estabelecimento
 │   └── integrations/
-│       ├── evolution_api.py        # Envio de mensagem/mídia + presence (digitando) + reações via Evolution API
-│       └── transcribe.py           # Transcrição de áudio via OpenAI Whisper (whisper-1)
+│       ├── evolution_api.py        # Envio de mensagem/mídia + presence + reações via Evolution API
+│       └── transcribe.py           # Transcrição de áudio via OpenAI Whisper
 ├── data/                           # Banco SQLite de controle de acesso (data/access.db)
 ├── rag_files/                      # PDFs e TXTs para indexação (apagados após indexar)
 ├── vectorstore/                    # Índice Chroma gerado automaticamente
-├── .dockerignore
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
@@ -140,14 +124,12 @@ Dremio+MySQL Chroma       [Agente RAG] sem ferramentas
 
 | Rota | Quando aciona | Ferramentas |
 |---|---|---|
-| `sql` | Vendas, faturamento, delivery, formas de pagamento, estornos, metas, orçamento, compras, pedidos, SSS, ticket médio | `consultar_vendas` (Dremio) + `consultar_delivery` (Dremio) + `consultar_formas_pagamento` (Dremio) + `consultar_estornos` (Dremio) + `consultar_metas` (Dremio) + `consultar_compras` (MySQL) + `gerar_grafico` + `exportar_excel` |
-| `docs` | Políticas, organograma, contatos, emails, ramais, quem procurar | `consultar_documentos` (Chroma) |
-| `ambos` | Pergunta envolve dados numéricos E documentos ao mesmo tempo | Executa Agente SQL + Agente RAG **em paralelo** (ThreadPoolExecutor) e combina as respostas |
-| `geral` | Saudações, agradecimentos, perguntas fora do escopo | Nenhuma — LLM chamado diretamente (sem ReAct, sem ferramentas) |
+| `sql` | Vendas, faturamento, delivery, formas de pagamento, estornos, metas, compras, ticket médio | `consultar_vendas`, `consultar_delivery`, `consultar_formas_pagamento`, `consultar_estornos`, `consultar_metas` (Dremio) + `consultar_compras` (MySQL) + `gerar_grafico` + `exportar_excel` |
+| `docs` | Políticas, organograma, contatos, emails, ramais | `consultar_documentos` (Chroma) |
+| `ambos` | Pergunta envolve dados numéricos E documentos | Agente SQL + Agente RAG **em paralelo** |
+| `geral` | Saudações, agradecimentos, fora do escopo | Nenhuma — LLM direto (sem ReAct) |
 
-Cada agente tem seu próprio **prompt especializado** e **ferramentas exclusivas** — o Agente SQL nunca acessa documentos e o Agente RAG nunca acessa bancos de dados. Para `geral`, não há overhead de agente ReAct: o modelo responde diretamente via `general_prompt`.
-
-**Fallback de modelo:** se o modelo principal falhar (rate limit, timeout de API), o sistema tenta automaticamente com um modelo alternativo configurado em `FALLBACK_MODEL_NAME`. Se não houver fallback configurado, retorna mensagem de erro ao usuário.
+**Fallback de modelo:** se o modelo principal falhar, o sistema tenta automaticamente com `FALLBACK_MODEL_NAME`. Se não configurado, retorna mensagem de erro ao usuário.
 
 ---
 
@@ -160,387 +142,76 @@ Cada agente tem seu próprio **prompt especializado** e **ferramentas exclusivas
 | `postgres` | postgres:15 | 5432 | Banco de dados da Evolution API |
 | `redis` | redis:7 | 6379 | Buffer de mensagens + histórico de conversa |
 
-Todos os serviços possuem **health checks** configurados. O `bot` e a `evolution-api` só sobem após Redis e Postgres estarem prontos.
+Todos os serviços possuem **health checks**. O `bot` e a `evolution-api` só sobem após Redis e Postgres estarem prontos.
 
 **Bases de dados externas** (não sobem no Docker):
 
 | Banco | Função |
 |---|---|
-| Dremio | Dados de vendas — `views."AI_AGENTS"."fSales"`, `views."AI_AGENTS"."fSalesDelivery"`, `views."AI_AGENTS"."fFormasPagamento"`, `views."AI_AGENTS"."fEstornos"` e `views."AI_AGENTS"."dMetas_Casas"` |
-| MySQL | Dados de compras — tabela `` `tabela_compras` `` |
-
-**Volumes persistentes:**
-
-| Volume | Conteúdo |
-|---|---|
-| `evolution_instances` | Instâncias e sessões do WhatsApp |
-| `postgres_data` | Banco de dados da Evolution API |
-| `redis` | Dados persistidos do Redis (AOF) |
-| `vectorstore` | Índice Chroma com os documentos indexados (RAG) |
-
-### Exemplo do docker-compose.yml
-
-```yaml
-services:
-
-  # ── Evolution API (Gateway WhatsApp) ───────────────────────────
-  evolution-api:
-    container_name: evolution_api
-    image: evoapicloud/evolution-api:latest
-    restart: always
-    ports:
-      - "8080:8080"
-    env_file:
-      - .env
-    volumes:
-      - evolution_instances:/evolution/instances
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  # ── PostgreSQL (banco de dados interno da Evolution API) ───────
-  postgres:
-    container_name: postgres
-    image: postgres:15
-    command: ["postgres", "-c", "max_connections=1000"]
-    restart: always
-    ports:
-      - 5432:5432
-    environment:
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    expose:
-      - 5432
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ── Redis (buffer de mensagens + histórico de conversa) ────────
-  redis:
-    image: redis:7
-    container_name: redis
-    command: >
-      redis-server --port 6379 --appendonly yes
-    volumes:
-      - redis:/data
-    ports:
-      - 6379:6379
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ── Bot IA ─────────────────────────────────────────────────────
-  bot:
-    build: .
-    container_name: bot
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    depends_on:
-      redis:
-        condition: service_healthy
-    restart: always
-    volumes:
-      - ./rag_files:/app/rag_files        # PDFs/TXTs para indexar
-      - ./vectorstore:/app/vectorstore    # índice Chroma (bind mount — sem problema de permissão)
-      - ./data:/app/data                  # banco SQLite de controle de acesso
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-volumes:
-  evolution_instances:
-  postgres_data:
-  redis:
-```
+| Dremio | Dados de vendas — views `fSales`, `fSalesDelivery`, `fFormasPagamento`, `fEstornos`, `dMetas_Casas` |
+| MySQL | Dados de compras — tabela `tabela_compras` |
 
 ---
 
 ## Controle de Acesso
 
-O bot possui um sistema de controle de acesso por número de WhatsApp. Apenas usuários autorizados conseguem interagir — os demais recebem uma mensagem de bloqueio configurável. Existem dois perfis: **usuário comum** e **admin**.
+Apenas usuários autorizados conseguem interagir. Os demais recebem uma mensagem configurável via `UNAUTHORIZED_MESSAGE`. Dois perfis: **usuário comum** e **admin**.
 
-### Onde os dados ficam
+Os usuários são armazenados em SQLite (`SQLITE_PATH`, padrão `data/access.db`), persistido via bind mount.
 
-Os usuários são armazenados em um banco SQLite no caminho definido por `SQLITE_PATH` (padrão: `data/access.db`), persistido via bind mount `./data:/app/data` no Docker.
+### Configuração inicial — usuários seed
 
-| Campo | Descrição |
-|---|---|
-| `telefone` | Número no formato `5511999999999` (sem `+`, sem espaços) |
-| `nome` | Nome do usuário |
-| `cargo` | Cargo do usuário (ex: Analista, Coordenador) |
-| `casa` | Estabelecimento/unidade (ex: Matriz, Filial) |
-| `is_admin` | `1` = admin, `0` = usuário comum |
-| `active` | `1` = ativo, `0` = bloqueado |
-| `adicionado_por` | Telefone de quem autorizou (legado / compat.) |
-| `adicionado_por_tel` | Telefone de quem autorizou |
-| `adicionado_por_nome` | Nome de quem autorizou |
-| `criado_em` | Data/hora de criação do registro |
-| `alterado_em` | Data/hora da última alteração (bloquear/desbloquear/autorizar) |
-
-### Configuração inicial — usuários seed (admin)
-
-Defina os administradores iniciais via variável `SEED_USERS` no `.env`. Eles são inseridos automaticamente na primeira vez que o bot sobe e **nunca sobrescritos** nas reinicializações seguintes.
+Defina os administradores iniciais via `SEED_USERS` no `.env`. Inseridos automaticamente no primeiro boot e **nunca sobrescritos**.
 
 ```env
-# Formato: TELEFONE:NOME:CARGO:CASA:admin  (separados por vírgula para múltiplos)
+# Formato: TELEFONE:NOME:CARGO:CASA:admin  (vírgula para múltiplos)
 SEED_USERS=5511999990000:João Silva:Analista:Matriz:admin
-
-# Múltiplos usuários seed:
-SEED_USERS=5511999990000:João Silva:Analista:Matriz:admin,5511988880000:Maria Souza:Estagiaria:Matriz:user
 ```
 
-> Usuários seed com perfil `admin` podem gerenciar outros usuários via comandos no próprio WhatsApp.
-
-### Mensagem para usuários não autorizados
-
-```env
-UNAUTHORIZED_MESSAGE=Olá! Você não está autorizado a usar este assistente. Entre em contato com um administrador.
-```
-<img src="image/image-10.png" width="800" alt="Diagrama do fluxo">
-
----
+<img src="image/image-10.png" width="800" alt="Controle de acesso">
 
 ### Comandos admin (via WhatsApp)
 
-Apenas usuários com `is_admin = 1` podem usar os comandos abaixo, exceto `/limpar` que está disponível a todos os usuários autorizados. Usuários comuns que tentarem outros comandos recebem `"Comando não reconhecido."`.
+Apenas admins podem usar os comandos abaixo, exceto `/limpar` que está disponível a todos.
 
-#### Listar usuários padrão
+| Comando | Descrição |
+|---|---|
+| `/autorizar 5511999 ; Nome ; Cargo ; Casa` | Adiciona usuário comum |
+| `/autorizar 5511999 ; Nome ; Cargo ; Casa ; admin` | Adiciona usuário admin |
+| `/bloquear 5511999` | Desativa o acesso (sem apagar o registro) |
+| `/desbloquear 5511999` | Reativa usuário bloqueado |
+| `/remover 5511999` | Remove permanentemente |
+| `/usuarios` | Lista usuários ativos e bloqueados |
+| `/usuarios admin` | Lista administradores |
+| `/reindexar` | Indexa novos arquivos de `rag_files/` sem reiniciar |
+| `/limpar` | Apaga o histórico de conversa do usuário |
+| `/ajuda` | Exibe lista de comandos |
 
-O que escrever no WhatsApp:
-```
-/usuarios
-```
-
-Resposta do bot:
-```
-*Usuários padrão:*
-• 5511988880000 | Maria Souza | Filial | Estagiaria
-
-*Bloqueados:*
-• Carlos Lima (5511977770000)
-```
-
----
-
-#### Listar administradores
-
-O que escrever no WhatsApp:
-```
-/usuarios admin
-```
-
-Resposta do bot:
-```
-*Administradores:*
-• 5511999990000 | João Silva | Matriz | Analista | _admin_
-```
-
----
-
-#### Adicionar usuário comum
-
-O que escrever no WhatsApp:
-```
-/autorizar 5511977770000 ; Carlos Lima ; Analista ; Matriz
-```
-
-Resposta do bot:
-```
-✅ Carlos Lima (5511977770000) autorizado com sucesso.
-```
-
----
-
-#### Adicionar usuário admin
-
-O que escrever no WhatsApp:
-```
-/autorizar 5511966660000 ; Ana Reis ; Analista ; Matriz ; admin
-```
-
-Resposta do bot:
-```
-✅ Ana Reis (5511966660000) autorizado com sucesso.
-```
-
-> Se o número já existir (mesmo que bloqueado), o comando **reativa e atualiza** os dados. Resposta será `reativado` no lugar de `autorizado`.
-
----
-
-#### Bloquear usuário
-
-Desativa o acesso sem apagar o registro. Pode ser reativado com `/desbloquear`.
-
-O que escrever no WhatsApp:
-```
-/bloquear 5511977770000
-```
-
-Resposta do bot:
-```
-🚫 Carlos Lima (5511977770000) bloqueado com sucesso.
-```
-
----
-
-#### Desbloquear usuário
-
-Reativa um usuário bloqueado **sem alterar nenhum dado** (nome, cargo, casa, perfil). Não é necessário redigitar as informações.
-
-O que escrever no WhatsApp:
-```
-/desbloquear 5511977770000
-```
-
-Resposta do bot:
-```
-✅ Carlos Lima (5511977770000) desbloqueado com sucesso.
-```
-
-> Se o usuário já estiver ativo, o bot informa: `⚠️ Carlos Lima já está ativo.`
-
----
-
-#### Remover usuário permanentemente
-
-Apaga o registro do banco. Não pode ser desfeito — para reativar será necessário usar `/autorizar` novamente.
-
-O que escrever no WhatsApp:
-```
-/remover 5511977770000
-```
-
-Resposta do bot:
-```
-🗑️ Carlos Lima (5511977770000) removido permanentemente.
-```
-
----
-
-#### Reindexar documentos sem reiniciar
-
-O que escrever no WhatsApp:
-```
-/reindexar
-```
-
-Resposta do bot:
-```
-2 arquivo(s) indexado(s) com 47 chunks.
-```
-
-Indexa todos os arquivos que estiverem em `rag_files/` imediatamente, sem reiniciar o servidor. Os arquivos são deletados após a indexação e o índice Chroma existente é atualizado.
-
----
-
-#### Limpar histórico de conversa (todos os usuários)
-
-O que escrever no WhatsApp:
-```
-/limpar
-```
-
-Resposta do bot:
-```
-Historico de conversa apagado.
-```
-
----
-
-#### Ver ajuda no WhatsApp
-
-O que escrever no WhatsApp:
-```
-/ajuda
-```
-
-Resposta do bot:
-```
-*Comandos disponíveis:*
-
-*/autorizar* 5511999 ; Nome ; Cargo ; Casa
-→ Autoriza novo usuario padrao
-
-*/autorizar* 5511999 ; Nome ; Cargo ; Casa ; admin
-→ Autoriza novo usuario como administrador
-
-*/bloquear* 5511999
-→ Bloqueia acesso de um usuario
-
-*/desbloquear* 5511999
-→ Desbloqueia um usuario
-
-*/remover* 5511999
-→ Remove usuario permanentemente
-
-*/usuarios*
-→ Lista usuarios padrao cadastrados
-
-*/usuarios admin*
-→ Lista administradores cadastrados
-
-*/reindexar*
-→ Indexa novos arquivos da pasta rag_files sem reiniciar
-
-*/limpar*
-→ Apaga seu historico de conversa (disponivel a todos)
-```
+> Se o número já existir (mesmo bloqueado), `/autorizar` **reativa e atualiza** os dados.
 
 ---
 
 ## Gerenciamento de Documentos (RAG)
 
-Coloque PDFs ou TXTs na pasta `rag_files/` para que o Agente RAG passe a responder perguntas sobre eles.
+Coloque PDFs ou TXTs na pasta `rag_files/` e o Agente RAG passa a responder perguntas sobre eles.
 
 **Fluxo de indexação:**
-```
-1. Coloque o arquivo em  rag_files/
-2. Envie /reindexar no WhatsApp (admin)  ← sem restart
-   OU  docker compose restart bot
-3. O bot:
-   - extrai o texto (PyPDFLoader / TextLoader)
-   - divide em chunks de 1000 caracteres com sobreposição de 200
-   - gera embeddings via OpenAI
-   - adiciona ao índice Chroma em  vectorstore/  (volume persistente)
-   - apaga o arquivo original automaticamente
-4. Próximas consultas já usam os novos documentos
-```
-
-**Opções para indexar novos documentos:**
+1. Coloque o arquivo em `rag_files/`
+2. Envie `/reindexar` no WhatsApp (admin) **ou** `docker compose restart bot`
+3. O bot extrai o texto, divide em chunks (1000 chars / sobreposição 200), gera embeddings via OpenAI, salva no Chroma e **apaga o arquivo original**
 
 ```bash
-# Opção 1 — sem reiniciar (recomendado)
-# Coloque o arquivo em rag_files/ e envie no WhatsApp:
+# Sem reiniciar (recomendado)
 /reindexar
 
-# Opção 2 — via endpoint HTTP (com API key no header x-api-key)
+# Via endpoint HTTP
 curl -X POST http://localhost:8000/reindexar -H "x-api-key: SUA_API_KEY"
 
-# Opção 3 — restart do container
-docker compose restart bot
-
-# Acompanhar nos logs
-docker compose logs -f bot
-# Procure por: "Arquivo indexado e removido: organograma.pdf"
-
-# Zerar todo o índice de documentos
-docker compose down
-rm -rf ./vectorstore
-docker compose up -d
+# Zerar todo o índice
+docker compose down && rm -rf ./vectorstore && docker compose up -d
 ```
 
-> O custo de embedding (OpenAI `text-embedding-ada-002`) ocorre apenas na indexação. Perguntas subsequentes não geram custo de embedding — apenas o custo normal de tokens do Grok via OpenRouter.
+> O custo de embedding (`text-embedding-ada-002`) ocorre apenas na indexação, não nas consultas.
 
 ---
 
@@ -548,278 +219,57 @@ docker compose up -d
 
 | Método | Endpoint | Auth | Descrição |
 |---|---|---|---|
-| `GET` | `/health` | Nenhuma | Status do servidor |
-| `GET` | `/metrics` | Nenhuma | Métricas de uso (requests, cache hit rate, latência por agente, erros) |
+| `GET` | `/health` | — | Status do servidor |
+| `GET` | `/metrics` | — | Métricas de uso (requests, cache, latência, erros) |
 | `POST` | `/webhook` | Evolution API | Recebe mensagens do WhatsApp |
-| `POST` | `/limpar_cache` | `x-api-key` header | Remove todas as respostas cacheadas do Redis |
-| `POST` | `/reindexar` | `x-api-key` header | Indexa novos arquivos de `rag_files/` sem reiniciar |
-
-**Exemplo de uso dos endpoints admin:**
-```bash
-# Limpar cache de respostas
-curl -X POST http://localhost:8000/limpar_cache \
-     -H "x-api-key: SUA_AUTHENTICATION_API_KEY"
-
-# Reindexar documentos
-curl -X POST http://localhost:8000/reindexar \
-     -H "x-api-key: SUA_AUTHENTICATION_API_KEY"
-
-# Ver métricas
-curl http://localhost:8000/metrics
-```
-
-**Exemplo de resposta do `/metrics`:**
-```json
-{
-  "resumo": {
-    "requests_total": 142,
-    "cache_hits": 38,
-    "cache_hit_rate_pct": 26.8,
-    "errors_total": 2,
-    "error_rate_pct": 1.4
-  },
-  "categorias": { "sql": 98, "docs": 12, "ambos": 4, "geral": 28 },
-  "latencia": {
-    "sql": { "<5s": 21, "5-30s": 61, "30-60s": 12, ">60s": 4, "total_calls": 98 },
-    "rag": { "<5s": 8, "5-30s": 4, "30-60s": 0, ">60s": 0, "total_calls": 12 }
-  },
-  "erros": { "sql": 2 }
-}
-```
-
-> A autenticação dos endpoints admin usa a mesma chave configurada em `AUTHENTICATION_API_KEY` no `.env`.
-
----
-
-## Suporte a áudio (Whisper)
-
-O bot transcreve automaticamente mensagens de áudio antes de enviá-las ao agente.
-
-**Fluxo:**
-```
-Áudio WhatsApp → Evolution API → app.py detecta audioMessage
-   → get_media_base64() baixa o áudio da Evolution API
-   → transcribe_audio() envia para OpenAI Whisper (whisper-1)
-   → texto transcrito → buffer_message() → route_and_invoke() → agente
-```
-
-| Arquivo | Responsabilidade |
-|---|---|
-| `app.py` | Detecta `audioMessage` e orquestra o fluxo |
-| `integrations/evolution_api.py` | `get_media_base64()` — baixa o áudio como base64 |
-| `integrations/transcribe.py` | `transcribe_audio()` — chama Whisper e retorna texto |
-
-> Mensagens de texto e áudio seguem o mesmo fluxo após a transcrição. O agente não distingue a origem.
-
-**Custo:** ~$0.006/minuto de áudio (OpenAI Whisper). Sem nova dependência — usa o `openai` já instalado.
+| `POST` | `/limpar_cache` | `x-api-key` | Remove respostas cacheadas do Redis |
+| `POST` | `/reindexar` | `x-api-key` | Indexa novos arquivos de `rag_files/` |
 
 ---
 
 ## Ferramentas dos agentes
 
-### `consultar_vendas` — Agente SQL → Dremio
-Usada para perguntas sobre faturamento, receita e desempenho de vendas.
+| Tool | Agente | Fonte | Aciona quando |
+|---|---|---|---|
+| `consultar_vendas` | SQL | Dremio | Faturamento, receita, desempenho de vendas, ticket médio, fluxo |
+| `consultar_delivery` | SQL | Dremio | Pedidos delivery, plataformas (iFood, Rappi, etc.) |
+| `consultar_formas_pagamento` | SQL | Dremio | Mix de pagamentos, participação por forma (dinheiro, cartão, pix) |
+| `consultar_estornos` | SQL | Dremio | Estornos, cancelamentos, devoluções |
+| `consultar_metas` | SQL | Dremio | Metas, orçamento, vendas vs meta, fluxo vs meta |
+| `consultar_compras` | SQL | MySQL | Pedidos de compra, fornecedores, notas fiscais |
+| `exportar_excel` | SQL | Dremio/MySQL | Quando o usuário pede os dados em `.xlsx` |
+| `gerar_grafico` | SQL | Dremio/MySQL | Quando o usuário pede visualização gráfica |
+| `consultar_documentos` | RAG | Chroma | Políticas, organograma, contatos, ramais, emails, procedimentos |
 
-Tabela: `views."AI_AGENTS"."fSales"`
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `casa_ajustado` | TEXT | Nome do estabelecimento |
-| `alavanca` | TEXT | Vertical/segmento (Bar, Restaurante, Iraja) |
-| `data_evento` | DATE | Data da venda |
-| `hora_item` | FLOAT | Hora do item (06:00 a 05:59) |
-| `descricao_produto` | TEXT | Nome do produto vendido |
-| `quantidade` | FLOAT | Quantidade vendida |
-| `valor_produto` | DOUBLE | Valor unitário |
-| `nome_funcionario` | TEXT | Nome do funcionário |
-| `valor_liquido_final` | DOUBLE | Valor líquido final (use para totais) |
-| `desconto_total` | FLOAT | Desconto total aplicado |
-| `distribuicao_pessoas` | FLOAT | Somar para obter Fluxo de clientes |
-| `ticket_medio` | — | Não é coluna — calcular: `SUM(valor_liquido_final) / SUM(distribuicao_pessoas)` |
-
-### `consultar_delivery` — Agente SQL → Dremio
-Usada para perguntas sobre pedidos delivery, faturamento delivery e plataformas (iFood, Rappi, etc.).
-
-Tabela: `views."AI_AGENTS"."fSalesDelivery"`
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `casa_ajustado` | TEXT | Nome do estabelecimento |
-| `alavanca` | TEXT | Vertical/segmento (Bar, Restaurante, Iraja) |
-| `data_evento` | DATE | Data do pedido delivery |
-| `hora_item` | FLOAT | Hora do item (06:00 a 05:59) |
-| `codigo_produto` | TEXT | Código do produto |
-| `descricao_produto` | TEXT | Nome do produto vendido |
-| `quantidade` | FLOAT | Quantidade de itens vendidos |
-| `valor_produto` | DOUBLE | Valor unitário |
-| `valor_venda` | DOUBLE | Valor de venda antes de descontos |
-| `desconto_produto` | FLOAT | Desconto aplicado no produto |
-| `desconto_total` | FLOAT | Desconto total aplicado no pedido |
-| `nome_funcionario` | TEXT | Canal/plataforma do pedido (IFOOD, RAPPI, APP PROPRIO, TERMINAL) |
-| `valor_conta` | DOUBLE | Valor total da conta/pedido |
-| `valor_liquido_final` | DOUBLE | Valor líquido final (use para totais) |
-| `distribuicao_pessoas` | FLOAT | Somar para obter Fluxo de clientes |
-| `ticket_medio` | — | Não é coluna — calcular: `SUM(valor_liquido_final) / SUM(distribuicao_pessoas)` |
-
-### `consultar_formas_pagamento` — Agente SQL → Dremio
-Usada para perguntas sobre mix de pagamentos e participação de cada forma (dinheiro, cartão, pix, etc.).
-
-Tabela: `views."AI_AGENTS"."fFormasPagamento"`
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `cnpj_casa` | TEXT | CNPJ do estabelecimento |
-| `casa_ajustado` | TEXT | Nome do estabelecimento |
-| `alavanca` | TEXT | Vertical/segmento (Bar, Restaurante, Iraja) |
-| `data` | DATE | Data do registro |
-| `descricao_forma_pagamento` | TEXT | Nome da forma de pagamento (VISA_CREDITO, DINHEIRO, PIX, etc.) |
-| `pessoas` | FLOAT | Número de pessoas |
-| `vl_recebido` | DOUBLE | Valor bruto recebido nessa forma de pagamento (use para totais) |
-
-### `consultar_estornos` — Agente SQL → Dremio
-Usada para perguntas sobre estornos, cancelamentos ou devoluções de produtos.
-
-Tabela: `views."AI_AGENTS"."fEstornos"`
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `casa_ajustado` | TEXT | Nome do estabelecimento |
-| `alavanca` | TEXT | Vertical/segmento (Bar, Restaurante, Iraja) |
-| `data_evento` | TIMESTAMP | Data e hora do estorno — usar `CAST(data_evento AS DATE)` para filtrar por data |
-| `codigo_produto` | INT | Código do produto estornado |
-| `descricao_produto` | TEXT | Nome do produto estornado |
-| `quantidade` | FLOAT | Quantidade estornada |
-| `valor_produto` | DOUBLE | Valor total do estorno — usar `SUM(valor_produto)` para totalizar |
-| `descricao_motivo_estorno` | TEXT | Motivo do estorno — usar `GROUP BY` para agrupar por motivo |
-| `perda` | INT | Indica se houve perda: `1` = sim, `0` = não |
-| `tipo_estorno` | TEXT | Tipo do estorno (ex: COM FATURAMENTO) |
-| `nome_cliente` | TEXT | Identificação do cliente |
-| `nome_funcionario` | TEXT | Nome do funcionário que realizou o estorno |
-| `nome_usuario_funcionario` | TEXT | Login do funcionário |
-
-### `consultar_metas` — Agente SQL → Dremio
-Usada para perguntas sobre metas, orçamento, atingimento de meta, vendas vs meta e fluxo vs meta.
-
-Tabela: `views."AI_AGENTS"."dMetas_Casas"`
-
-> **Atenção:** colunas com espaço no nome devem ser referenciadas com aspas duplas no SQL: `"RECEITA META"`, `"META FLUXO"`.
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `DATA` | TIMESTAMP | Data da meta — usar `CAST(DATA AS DATE)` para filtrar por data |
-| `"RECEITA META"` | FLOAT | Meta diária de faturamento/receita — usar `SUM("RECEITA META")` para totalizar |
-| `"META FLUXO"` | FLOAT | Meta diária de fluxo de pessoas — usar `SUM("META FLUXO")` para totalizar |
-| `casa_ajustado` | TEXT | Nome completo do estabelecimento |
-| `alavanca` | TEXT | Vertical/segmento (Bar, Restaurante, Iraja) |
-
-**Para vendas vs meta:** a tool recebe uma CTE que junta `fSales` + `dMetas_Casas` numa única query, calculando realizado, meta e % de atingimento.
-
-### `consultar_compras` — Agente SQL → MySQL
-Usada para perguntas sobre pedidos de compra e fornecedores.
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `` `Fantasia` `` | TEXT | Nome fantasia da empresa |
-| `` `D. Lançamento` `` | DATE | Data da nota fiscal |
-| `` `N. Nota` `` | BIGINT | Número da nota fiscal |
-| `` `Razão Emitente` `` | TEXT | Razão social do fornecedor |
-| `` `Descrição Item` `` | TEXT | Nome do produto comprado |
-| `` `Grupo` `` | TEXT | Grupo do produto |
-| `` `V. Total` `` | DECIMAL | Valor total da compra |
-
-### `exportar_excel` — Agente SQL → Dremio/MySQL
-
-Usada quando o usuário pede explicitamente os dados em formato Excel (`.xlsx`). Funciona em dois cenários:
-
-**Cenário 1 — pedido direto:**
-> "preciso das vendas dia a dia de janeiro das casas X e Y separadas por grupos, em excel"
-→ O agente executa a query e já entrega o arquivo `.xlsx` diretamente.
-
-**Cenário 2 — follow-up após resposta em texto:**
-> (depois de receber a resposta normal) "pode me retornar isso em excel?" / "retorna em planilha"
-→ O agente usa o histórico para reconstruir a query com os mesmos filtros e gera o arquivo.
-
-**Fluxo interno:**
-```
-exportar_excel(sql, nome_arquivo, fonte)
-  → executa query → DataFrame
-  → df.to_excel() via openpyxl → BytesIO
-  → base64 → Redis (TTL 120s)
-  → retorna [EXCEL:excel:UUID|caption:nome.xlsx]
-  → message_buffer detecta marcador
-  → send_whatsapp_document() → Evolution API → WhatsApp
-```
-
-| Parâmetro | Tipo | Descrição |
-|---|---|---|
-| `sql` | TEXT | Query SQL com todas as colunas desejadas na planilha |
-| `nome_arquivo` | TEXT | Nome do arquivo com datas concretas (ex: `vendas_jan_2026.xlsx`) |
-| `fonte` | TEXT | `dremio` para vendas/delivery/metas, `mysql` para compras |
-
-> A tool pode retornar qualquer número de colunas — diferente de `gerar_grafico`, que exige exatamente 2 colunas. A planilha é gerada com a aba `Dados` e cabeçalhos automáticos.
-
----
-
-### `consultar_documentos` — Agente RAG → Chroma
-Usada para perguntas sobre documentos internos da empresa.
-
-| Tipo de documento | Exemplos |
-|---|---|
-| Organograma e estrutura | Hierarquia, setores, departamentos |
-| Contatos e emails | Quem procurar para cada assunto, ramais, emails |
-| Políticas internas | RH, financeiro, TI, compras |
-| Manuais e procedimentos | Processos operacionais, guias |
-
-> A busca é **semântica** — o agente encontra a informação mesmo que a pergunta use palavras diferentes das usadas no documento.
+> A busca do RAG é **semântica** — encontra a informação mesmo que a pergunta use palavras diferentes do documento.
 
 ---
 
 ## Configuração (.env)
 
 ```env
-# Python
-PYTHONDONTWRITEBYTECODE=1
-PYTHONUNBUFFERED=1
-
 # Evolution API (WhatsApp)
 EVOLUTION_API_URL=http://evolution-api:8080
 EVOLUTION_INSTANCE_NAME=instace_name
 AUTHENTICATION_API_KEY=sua_api_key
 
-# OpenRouter (Grok — modelo principal dos agentes)
-ROUTER_API_KEY=sk-or-v1-...seu_token_openrouter...
+# OpenRouter (modelo principal dos agentes)
+ROUTER_API_KEY=sk-or-v1-...
 ROUTER_BASE_URL=https://openrouter.ai/api/v1
 ROUTER_MODEL_NAME=x-ai/grok-4.1-fast
 OPENAI_MODEL_TEMPERATURE=0.3
 
-# Whisper — mesma chave do OpenRouter ou chave OpenAI separada (só para transcrição de áudio)
-WHISPER_API_KEY=sk-or-v1-...seu_token_openrouter...
+# Whisper (transcrição de áudio)
+WHISPER_API_KEY=sk-or-v1-...
 
-# Redis — Bot
+# Redis
 BOT_REDIS_URI=redis://redis:6379/0
-BUFFER_KEY_SUFIX=_msg_buffer
 DEBOUNCE_SECONDS=3
-BUFFER_TTL=300
-
-# Redis — Evolution API
-CACHE_REDIS_ENABLED=true
-CACHE_REDIS_URI=redis://redis:6379/0
-CACHE_REDIS_PREFIX_KEY=evolution
-CACHE_REDIS_SAVE_INSTANCES=false
-CACHE_LOCAL_ENABLED=false
 
 # PostgreSQL (Evolution API)
 DATABASE_ENABLED=true
 DATABASE_PROVIDER=postgresql
 DATABASE_CONNECTION_URI=postgresql://postgres:postgres@postgres:5432/evolution?schema=public
-DATABASE_CONNECTION_CLIENT_NAME=evolution_exchange
-DATABASE_SAVE_DATA_INSTANCE=true
-DATABASE_SAVE_DATA_NEW_MESSAGE=true
-DATABASE_SAVE_MESSAGE_UPDATE=true
-DATABASE_SAVE_DATA_CONTACTS=true
-DATABASE_SAVE_DATA_CHATS=true
-DATABASE_SAVE_DATA_LABELS=true
-DATABASE_SAVE_DATA_HISTORIC=true
 
 # MySQL (externo)
 DB_HOST=seu_host_mysql
@@ -833,22 +283,17 @@ DREMIO_HOST=seu_host:9047
 DREMIO_USER=seu_usuario
 DREMIO_PASSWORD=sua_senha
 
-# RAG (documentos internos)
-RAG_FILES_DIR=rag_files        # pasta onde colocar os PDFs/TXTs
-VECTOR_STORE_PATH=vectorstore  # onde o índice Chroma é salvo
+# RAG
+RAG_FILES_DIR=rag_files
+VECTOR_STORE_PATH=vectorstore
 
-# Modelo de fallback — usado automaticamente se o modelo principal falhar
-# Deixe em branco para desativar o fallback
+# Fallback de modelo (deixe em branco para desativar)
 FALLBACK_MODEL_NAME=x-ai/grok-3-mini-beta
 
 # Controle de acesso
 SQLITE_PATH=data/access.db
 UNAUTHORIZED_MESSAGE=Olá! Você não está autorizado a usar este assistente. Entre em contato com um administrador.
-
-# Usuários iniciais (seed) — inseridos na primeira vez que o bot sobe
-# Formato: TELEFONE:NOME:SETOR:CASA:admin  (vírgula para múltiplos)
 SEED_USERS=5511999990000:João Silva:TI:Matriz:admin
-
 ```
 
 ---
@@ -864,135 +309,24 @@ docker compose restart bot
 
 # Ver logs em tempo real
 docker compose logs -f bot
-
-# Últimas 100 linhas do bot
-docker logs bot --tail 100
 ```
-
----
-
-## Logs de startup esperados
 
 Os agentes usam **inicialização lazy** — o modelo e as ferramentas são carregados apenas na **primeira mensagem recebida**, não no boot.
-
-```
-INFO:     Started server process [1]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-```
-
-## Logs ao receber mensagem — pergunta de dados (SQL)
-
-```
-# 1. Webhook recebe a mensagem
-2026-03-02 10:00:00 [INFO] src.app: Mensagem de João: "Quanto vendemos em janeiro?"
-
-# 2. Buffer de debounce — aguarda 3s
-2026-03-02 10:00:00 [INFO] src.message_buffer: Mensagem adicionada ao buffer de 55119...
-2026-03-02 10:00:03 [INFO] src.message_buffer: Enviando mensagem agrupada para 55119...
-
-# 3. Agente SQL inicializado (apenas na primeira mensagem)
-2026-03-02 10:00:03 [INFO] src.chains: Inicializando agente SQL...
-2026-03-02 10:00:04 [INFO] src.chains: Agente SQL pronto.
-
-# 4. Router classifica a intenção
-2026-03-02 10:00:04 [INFO] src.chains: Intencao classificada como 'sql' para: Quanto vendemos em janeiro?
-
-# 5. Agente SQL em execução
-> Entering new AgentExecutor chain...
-
-Thought: O usuário quer saber o total de vendas de janeiro. Preciso consultar o Dremio.
-Action: consultar_vendas
-Action Input: SELECT SUM(valor_liquido_final) AS total FROM views."financial_sales_testes"
-              WHERE EXTRACT(MONTH FROM data_evento) = 1
-
-2026-03-02 10:00:08 [INFO] src.connectors.dremio: Estado do job: COMPLETED (3s)
-
-Observation:
-      total
-   45230.00
-
-Final Answer: Em janeiro foram vendidos R$ 45.230,00.
-
-> Finished chain.
-2026-03-02 10:00:08 [INFO] src.message_buffer: Resposta do agente para 55119...: "Em janeiro..."
-```
-
-## Logs ao receber mensagem — pergunta de documentos (RAG)
-
-```
-# 4. Router classifica a intenção
-2026-03-02 10:00:04 [INFO] src.chains: Intencao classificada como 'docs' para: Quem e o responsavel pelo RH?
-
-# 5. Agente RAG inicializado (apenas na primeira vez)
-2026-03-02 10:00:04 [INFO] src.chains: Inicializando agente RAG...
-2026-03-02 10:00:05 [INFO] src.chains: Agente RAG pronto.
-
-# 6. Vectorstore carregado (apenas na primeira consulta RAG)
-2026-03-02 10:00:05 [INFO] src.tools.rag_tool: Carregando vectorstore...
-2026-03-02 10:00:06 [INFO] src.tools.rag_tool: Vectorstore pronto.
-2026-03-02 10:00:06 [INFO] src.tools.rag_tool: Buscando nos documentos: Quem e o responsavel pelo RH?
-
-# 7. Agente RAG em execução
-> Entering new AgentExecutor chain...
-
-Thought: Preciso buscar nos documentos quem é o responsável pelo RH.
-Action: consultar_documentos
-Action Input: responsavel pelo setor de Recursos Humanos
-
-Observation:
-[Trecho 1]
-João Silva é o Gerente de Recursos Humanos.
-Contato: joao.silva@empresa.com | Ramal: 2301
-
-Final Answer: O responsável pelo RH é João Silva.
-Contato: joao.silva@empresa.com | Ramal: 2301
-
-> Finished chain.
-```
 
 ---
 
 ## Personalidade e regras dos agentes
 
-O comportamento de cada agente está definido em [src/prompts.py](src/prompts.py).
+Comportamento definido em [src/prompts.py](src/prompts.py).
 
-### Agente SQL (`react_prompt`)
-- **Confidencialidade absoluta:** nunca revela tabelas, bancos, schemas, colunas ou estrutura técnica
-- Sempre consulta as ferramentas para cada pergunta — não reutiliza respostas anteriores
-- Responde exclusivamente em português
-- Perguntas fora do escopo retornam: *"Não tenho acesso a essas informações"*
-- Datas sem ano (ex: `26/02`, `5/3`) completadas automaticamente com o ano corrente via regex em `chains.py`
-- **SSS (Same Store Sales):** calcula com uma única query CTE no Dremio; deduz o período de comparação automaticamente sem perguntar ao usuário
-- Mantém as últimas **5 mensagens** do histórico de conversa por sessão
+| Agente | Regras principais |
+|---|---|
+| **SQL** (`react_prompt`) | Nunca revela tabelas/schemas. Sempre consulta as tools. Datas sem ano completadas com o ano corrente. SSS calculado via CTE sem perguntar ao usuário. Histórico: 5 pares de mensagens. |
+| **RAG** (`rag_prompt`) | Responde somente com base nos documentos indexados. Se não encontrar, informa claramente. Nunca inventa informações. |
+| **Geral** (`general_prompt`) | LLM direto, sem ReAct. Saudações, agradecimentos, fora do escopo. Mais rápido e barato. |
+| **Router** (`router_prompt`) | Classifica em `sql`, `docs`, `ambos` ou `geral`. Fallback para `sql` em caso de resposta inválida. |
 
-### Agente RAG (`rag_prompt`)
-- Responde **somente** com base nos trechos encontrados nos documentos indexados
-- Se não encontrar, informa claramente: *"Não encontrei essa informação nos documentos disponíveis"*
-- Para contatos e emails: lista de forma organizada o que estiver nos documentos
-- Nunca inventa informações
-
-### Resposta Geral (`general_prompt`)
-- Chamada direta ao LLM — **sem agente ReAct, sem ferramentas**
-- Usada para saudações, agradecimentos e perguntas fora do escopo
-- Resposta mais rápida e de menor custo (sem overhead de Thought/Action/Observation)
-- Informa gentilmente o que o bot pode ajudar se a pergunta estiver fora do escopo
-
-### Router (`router_prompt`)
-- Classifica a intenção em: `sql`, `docs`, `ambos` ou `geral`
-- `geral` é usado para saudações, agradecimentos e perguntas fora do escopo
-- Em caso de resposta inválida, usa `sql` como fallback
-
-#### Configuração do histórico de conversa (Redis)
-
-| Configuração | Valor | Onde |
-|---|---|---|
-| Mensagens mantidas no contexto | 5 pares (usuário + bot) | `_MAX_HISTORY = 5` em `chains.py` |
-| Tempo de expiração | 24 horas de inatividade | `_SESSION_TTL = 86400` em `memory.py` |
-| Quando o timer reinicia | A cada nova mensagem enviada | comportamento padrão do TTL do Redis |
-
-> Ambos os agentes compartilham o mesmo histórico por sessão — o usuário pode alternar entre perguntas de dados e documentos livremente.
+> Ambos os agentes compartilham o mesmo histórico Redis por sessão (TTL 24h). O usuário pode alternar entre perguntas de dados e documentos livremente.
 
 ---
 
@@ -1000,59 +334,33 @@ O comportamento de cada agente está definido em [src/prompts.py](src/prompts.py
 
 ### Agentes (chat / ReAct) — via OpenRouter
 
-O projeto usa **Grok (xAI)** via [OpenRouter](https://openrouter.ai) como LLM principal. O modelo é configurado em `ROUTER_MODEL_NAME` no `.env`.
-
 | Modelo | Indicado para |
 |---|---|
-| `x-ai/grok-4.1-fast` | Produção — padrão atual, rápido e com boa aderência ao formato ReAct |
-| `x-ai/grok-4` | Alternativa com mais capacidade de raciocínio |
-| `x-ai/grok-3-mini-beta` | Testes — mais barato, menor confiabilidade no ReAct |
+| `x-ai/grok-4.1-fast` | Produção — padrão atual. Melhor custo-benefício: rápido, barato e com boa aderência ao formato ReAct |
+| `x-ai/grok-4` | Raciocínio mais profundo, mas mais lento e caro — não traz ganho prático para este caso de uso |
+| `x-ai/grok-3-mini-beta` | Testes — mais barato, menor confiabilidade no formato ReAct |
 
-> O OpenRouter permite trocar o modelo sem alterar código — basta mudar `ROUTER_MODEL_NAME`. Outros modelos disponíveis no OpenRouter (ex: Claude, GPT-4o) também são compatíveis via `langchain-openai`.
+> O OpenRouter permite trocar o modelo sem alterar código. Outros modelos (Claude, GPT-4o) também são compatíveis via `langchain-openai`.
 
-### Embeddings (RAG)
+### Embeddings e Transcrição
 
-| Modelo | Uso |
-|---|---|
-| `text-embedding-ada-002` | Padrão do `OpenAIEmbeddings()` — indexação e busca no Chroma |
-
-> Custo de indexação: ~$0.0001 por 1000 tokens (~centavos por PDF). O embedding usa OpenAI diretamente (não passa pelo OpenRouter).
-
-### Transcrição de áudio (Whisper)
-
-| Modelo | Uso |
-|---|---|
-| `whisper-1` | Único modelo disponível — usado em `integrations/transcribe.py` |
-
-> O modelo é fixo (`whisper-1`). Custo aproximado: **$0.006/minuto** de áudio (R$0,035 por minuto). Configurado via `WHISPER_API_KEY` — pode usar a mesma chave do OpenRouter ou uma chave OpenAI separada.
+| Modelo | Uso | Custo |
+|---|---|---|
+| `text-embedding-ada-002` | Indexação e busca RAG (OpenAI) | ~$0,0001/1k tokens |
+| `whisper-1` | Transcrição de áudio | ~$0,006/min |
 
 ---
 
 ## Custo por interação (estimativa)
 
-Cada mensagem respondida consome tokens em até duas etapas: **Router LLM** (classificação leve) + **Agente SQL ou RAG** (resposta).
-
 | Tipo de interação | Custo (USD) | Custo (BRL) |
 |---|---|---|
 | Router (classificação) | ~$0,0001 | ~R$0,001 |
 | Mensagem SQL simples | ~$0,001 | ~R$0,006 |
-| Mensagem SQL com histórico ativo | ~$0,002 | ~R$0,012 |
-| Mensagem RAG (busca em documentos) | ~$0,001 | ~R$0,006 |
-| Mensagem geral (saudação/fora do escopo) | ~$0,0001 | ~R$0,001 |
-| Áudio de 30s + agente | ~$0,004 | ~R$0,024 |
-| Indexação de PDF (~5 páginas) | ~$0,001 (uma vez) | ~R$0,006 |
+| Mensagem SQL com histórico | ~$0,002 | ~R$0,012 |
+| Mensagem RAG | ~$0,001 | ~R$0,006 |
+| Mensagem geral | ~$0,0001 | ~R$0,001 |
+| Áudio 30s + agente | ~$0,004 | ~R$0,024 |
+| Indexação PDF (~5 páginas) | ~$0,001 (uma vez) | ~R$0,006 |
 
-> Preços Grok 4.1-fast via OpenRouter: ~$0,20/1M tokens input · ~$0,50/1M tokens output · Whisper: $0,006/min · Embeddings (OpenAI): $0,0001/1k tokens
-
-### Exemplo real de custo
-
-**Pergunta:** `"Quanto foi comprado de alimentos dia 26/02/2026 no [estabelecimento]?"`
-
-| Componente | Tokens | Custo (USD) | Custo (BRL) |
-|---|---|---|---|
-| Router — classificação | ~80 tokens | ~$0,00002 | ~R$0,0001 |
-| Input — prompt + pergunta + resultado do banco | 362 tokens | ~$0,00007 | ~R$0,0004 |
-| Output — Thought + SQL gerado + Final Answer | 117 tokens | ~$0,00006 | ~R$0,0004 |
-| **Total** | **~559 tokens** | **~$0,0001** | **~R$0,001** |
-
-> Valores estimados com base no preço do `x-ai/grok-4.1-fast` via OpenRouter. Consulte [openrouter.ai/models](https://openrouter.ai/models) para preços atualizados.
+> Preços Grok 4.1-fast via OpenRouter: ~$0,20/1M tokens input · ~$0,50/1M tokens output. Consulte [openrouter.ai/models](https://openrouter.ai/models) para preços atualizados.
