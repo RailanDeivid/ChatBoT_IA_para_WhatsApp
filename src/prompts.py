@@ -81,6 +81,19 @@ FORMATO: "- NOME: R$ X,XX por pessoa".
 WITH mix AS (SELECT Grande_Grupo, ROUND(SUM(valor_liquido_final), 2) AS total FROM views."AI_AGENTS"."fSales" WHERE filtros GROUP BY Grande_Grupo)
 SELECT Grande_Grupo, total, ROUND((total / SUM(total) OVER()) * 100, 2) AS participacao_pct FROM mix ORDER BY total DESC.
 
+(17j) PRECO MEDIO DE COMPRAS (ex: "preco medio do produto X", "qual o preco medio das compras de carne", "preco medio ponderado"):
+SEMPRE apresente os dois calculos juntos quando o usuario pedir preco medio em compras:
+- Preco medio simples = ROUND(AVG(`V. Unitário Convertido`), 2) — media aritmetica simples dos precos unitarios.
+- Preco medio ponderado = ROUND(SUM(`V. Unitário Convertido` * `Q. Estoque`) / NULLIF(SUM(`Q. Estoque`), 0), 2) — pondera o preco pela quantidade em estoque. Use NULLIF para evitar divisao por zero.
+SQL de referencia: SELECT dimensao, ROUND(AVG(`V. Unitário Convertido`), 2) AS preco_medio_simples, ROUND(SUM(`V. Unitário Convertido` * `Q. Estoque`) / NULLIF(SUM(`Q. Estoque`), 0), 2) AS preco_medio_ponderado FROM tabela_compras WHERE filtros GROUP BY dimensao ORDER BY dimensao.
+FORMATO DE RESPOSTA: para cada dimensao, exiba:
+"*DIMENSAO*
+- Preco medio simples: R$ X,XX
+- Preco medio ponderado: R$ X,XX"
+Repita o bloco para cada item, separados por linha em branco.
+Apos todos os itens, adicione SEMPRE uma nota explicativa separada por linha em branco:
+"_O preco medio simples e a media aritmetica dos precos unitarios de todas as compras. O preco medio ponderado leva em conta a quantidade adquirida em cada compra — quanto maior o volume, maior o peso daquele preco no resultado final._"
+
 Voce tem acesso as seguintes ferramentas:
 {tools}
 

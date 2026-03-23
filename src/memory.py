@@ -4,7 +4,7 @@ from langchain_community.chat_message_histories import RedisChatMessageHistory
 
 from src.config import REDIS_URL
 
-_SESSION_TTL = 86400  # 24 horas — sessões expiram após inatividade
+_SESSION_TTL = 259200  # 72 horas — sessões expiram após inatividade
 
 
 def get_session_history(session_id: str) -> RedisChatMessageHistory:
@@ -13,6 +13,16 @@ def get_session_history(session_id: str) -> RedisChatMessageHistory:
         url=REDIS_URL,
         ttl=_SESSION_TTL,
     )
+
+
+def get_session_messages(session_id: str) -> list[dict]:
+    """Retorna as mensagens do histórico de uma sessão como lista de dicts {role, content}."""
+    history = get_session_history(session_id)
+    result = []
+    for msg in history.messages:
+        role = getattr(msg, "type", None) or msg.__class__.__name__.lower()
+        result.append({"role": role, "content": msg.content})
+    return result
 
 
 def clear_session(session_id: str) -> None:

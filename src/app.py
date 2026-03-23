@@ -10,7 +10,7 @@ from src.message_buffer import buffer_message
 from src.integrations.evolution_api import get_media_base64, send_whatsapp_message
 from src.integrations.transcribe import transcribe_audio
 from src.access_control import init_db, is_authorized, is_admin, authorize, revoke, unblock, delete_user, list_users, get_user_nome
-from src.memory import clear_session
+from src.memory import clear_session, get_session_messages
 from src.config import UNAUTHORIZED_MESSAGE, REDIS_URL, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, EVOLUTION_AUTHENTICATION_API_KEY
 
 
@@ -260,6 +260,12 @@ def _handle_admin_command(message: str, admin_phone: str, sender_name: str = "")
     if cmd == "/usuarios":
         return _cmd_usuarios(admin_only=args.strip().lower() == "admin")
 
+    if cmd == "/historico":
+        phone_arg = args.strip()
+        if not phone_arg:
+            return "Uso: /historico 5511999999999"
+        return _cmd_historico(phone_arg)
+
     if cmd == "/reindexar":
         from src.vectorstore import reload_vectorstore
         ok, msg = reload_vectorstore()
@@ -282,10 +288,21 @@ def _handle_admin_command(message: str, admin_phone: str, sender_name: str = "")
             "→ Lista usuarios padrao cadastrados\n\n"
             "*/usuarios admin*\n"
             "→ Lista administradores cadastrados\n\n"
+            "*/historico* 5511999\n"
+            "→ Exibe o historico de conversa de um usuario (ultimas 72h)\n\n"
             "*/reindexar*\n"
             "→ Indexa novos arquivos da pasta rag_files sem reiniciar\n\n"
             "*/limpar*\n"
-            "→ Apaga seu historico de conversa (disponivel a todos)"
+            "→ Apaga seu historico de conversa (disponivel a todos)\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            "*Bases de dados disponíveis:*\n\n"
+            "📊 *Vendas* — faturamento, ticket médio, fluxo de pessoas, produtos, funcionários, descontos\n\n"
+            "🛵 *Delivery* — pedidos e faturamento por plataforma (iFood, Rappi, app próprio)\n\n"
+            "↩️ *Estornos* — cancelamentos, devoluções e motivos por produto/funcionário\n\n"
+            "🎯 *Metas* — realizado vs orçado, atingimento e delta por casa\n\n"
+            "💳 *Formas de pagamento* — receita por método (PIX, cartão, dinheiro, etc.)\n\n"
+            "🛒 *Compras* — pedidos de compra, fornecedores e notas fiscais de entrada\n\n"
+            "📄 *Documentos internos* — políticas, procedimentos, organograma e contatos"
         )
 
     return None  # comando desconhecido — segue fluxo normal do bot
@@ -317,6 +334,29 @@ def _cmd_autorizar(args: str, admin_phone: str) -> str:
         added_by_nome=added_by_nome,
         admin=admin,
     )
+
+
+def _cmd_historico(phone: str) -> str:
+    """Retorna o histórico de conversa de um usuário (últimas 72h)."""
+    session_id = f"{phone}@s.whatsapp.net"
+    messages = get_session_messages(session_id)
+    if not messages:
+        return f"Nenhum histórico encontrado para {phone} nas últimas 72h."
+
+    nome = get_user_nome(phone) or phone
+    lines = [f"*Histórico de {nome} ({phone}):*"]
+    for msg in messages:
+        is_human = msg["role"] in ("human", "HumanMessage")
+        prefix = "👤 *Usuário:*" if is_human else "🤖 *Assistente:*"
+        content = msg["content"].strip()
+        # Trunca respostas longas na última linha completa dentro do limite
+        if len(content) > 300:
+            truncated = content[:297]
+            last_newline = truncated.rfind("\n")
+            content = (truncated[:last_newline] if last_newline > 100 else truncated) + "\n_(truncado)_"
+        lines.append(f"\n{prefix}\n{content}")
+
+    return "\n".join(lines)
 
 
 def _cmd_usuarios(admin_only: bool = False) -> str:
