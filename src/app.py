@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from src.message_buffer import buffer_message
 from src.integrations.evolution_api import get_media_base64, send_whatsapp_message
 from src.integrations.transcribe import transcribe_audio
-from src.access_control import init_db, is_authorized, is_admin, authorize, revoke, unblock, delete_user, list_users, get_user_nome
+from src.access_control import init_db, is_authorized, is_admin, authorize, revoke, unblock, delete_user, update_phone, list_users, get_user_nome
 from src.memory import clear_session, clear_all_sessions, get_session_messages
 from src.config import UNAUTHORIZED_MESSAGE, REDIS_URL, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, EVOLUTION_AUTHENTICATION_API_KEY
 
@@ -257,6 +257,9 @@ def _handle_admin_command(message: str, admin_phone: str, sender_name: str = "")
             return "Uso: /remover 5511999999999"
         return delete_user(phone, deleted_by=admin_phone)
 
+    if cmd == "/atualizar":
+        return _cmd_atualizar(args, admin_phone)
+
     if cmd == "/usuarios":
         return _cmd_usuarios(admin_only=args.strip().lower() == "admin")
 
@@ -284,6 +287,8 @@ def _handle_admin_command(message: str, admin_phone: str, sender_name: str = "")
             "→ Desbloqueia um usuario\n\n"
             "*/remover* 5511999\n"
             "→ Remove usuario permanentemente\n\n"
+            "*/atualizar* 5511999 ; 5511888\n"
+            "→ Atualiza o numero de telefone de um usuario\n\n"
             "*/usuarios*\n"
             "→ Lista usuarios padrao cadastrados\n\n"
             "*/usuarios admin*\n"
@@ -301,6 +306,7 @@ def _handle_admin_command(message: str, admin_phone: str, sender_name: str = "")
             "↩️ *Estornos* — cancelamentos, devoluções e motivos por produto/funcionário\n\n"
             "🎯 *Metas* — realizado vs orçado, atingimento e delta por casa\n\n"
             "💳 *Formas de pagamento* — receita por método (PIX, cartão, dinheiro, etc.)\n\n"
+            "🎁 *Cortesias* — itens cortesia por produto, funcionario, tipo e casa\n\n"
             "🛒 *Compras* — pedidos de compra, fornecedores e notas fiscais de entrada\n\n"
             "📄 *Documentos internos* — políticas, procedimentos, organograma e contatos"
         )
@@ -334,6 +340,16 @@ def _cmd_autorizar(args: str, admin_phone: str) -> str:
         added_by_nome=added_by_nome,
         admin=admin,
     )
+
+
+def _cmd_atualizar(args: str, admin_phone: str) -> str:
+    """
+    Formato: /atualizar 5511999999999 ; 5511888888888
+    """
+    fields = [f.strip() for f in args.split(";")]
+    if len(fields) < 2 or not fields[0] or not fields[1]:
+        return "⚠️ Uso: /atualizar 5511999999999 ; 5511888888888\n(numero atual ; numero novo)"
+    return update_phone(fields[0], fields[1], updated_by=admin_phone)
 
 
 def _cmd_historico(phone: str) -> str:

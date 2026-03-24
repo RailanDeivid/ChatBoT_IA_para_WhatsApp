@@ -22,7 +22,7 @@ from src.config import (
 )
 from src.memory import get_session_history
 from src.prompts import react_prompt, rag_prompt, router_prompt, general_prompt
-from src.tools.dremio_tools import DremioSalesQueryTool, DremioDeliveryQueryTool, DremioPaymentQueryTool, DremioEstornosQueryTool, DremioMetasQueryTool, current_sender
+from src.tools.dremio_tools import DremioSalesQueryTool, DremioDeliveryQueryTool, DremioPaymentQueryTool, DremioEstornosQueryTool, DremioMetasQueryTool, DremioCortesiasQueryTool, current_sender
 from src.tools.mysql_tools import MySQLPurchasesQueryTool
 from src.tools.rag_tool import RAGDocumentQueryTool
 from src.tools.chart_tool import ChartTool
@@ -33,17 +33,30 @@ logger = logging.getLogger(__name__)
 _MAX_HISTORY = CONVERSATION_MAX_HISTORY
 _redis = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
-_FIRST_CONTACT_INTRO = (
-    "Sou a NINOIA, assistente interna. \n\n"
+_BASES_LISTA = (
     "Tenho acesso as seguintes bases de dados:\n\n"
     "📊 *Vendas* — faturamento, ticket medio, fluxo de pessoas, produtos, funcionarios, descontos e Same Store Sales (SSS)\n\n"
     "🛵 *Delivery* — pedidos e faturamento por plataforma (iFood, Rappi, app proprio)\n\n"
     "↩️ *Estornos* — cancelamentos, devolucoes e motivos por produto/funcionario\n\n"
     "🎯 *Metas* — realizado vs orcado, atingimento e delta por casa\n\n"
     "💳 *Formas de pagamento* — receita por metodo (PIX, cartao, dinheiro, etc.)\n\n"
+    "🎁 *Cortesias* — itens cortesia por produto, funcionario, tipo e casa\n\n"
     "🛒 *Compras* — pedidos de compra, fornecedores e notas fiscais de entrada\n\n"
     "📄 *Documentos internos* — politicas, procedimentos, organograma e contatos\n\n"
+    "📥 Qualquer resultado pode ser exportado em *Excel* — e so pedir!\n\n"
     "Como posso te ajudar hoje?"
+)
+
+_FIRST_CONTACT_INTRO = "Sou a NINOIA, seu assistente interno. \n\n" + _BASES_LISTA
+
+_BASES_RE = re.compile(
+    r'\b(quais (dados|bases|informacoes|informações|base de dados)|'
+    r'o que (voce|você) (tem|sabe|acessa|consulta)|'
+    r'que (dados|bases|informacoes|informações) (tem|voce tem|você tem)|'
+    r'o que (consigo|posso) (perguntar|consultar|pedir)|'
+    r'quais (consultas|relatorios|relatórios) (posso|consigo)|'
+    r'me (mostra|mostre|lista|liste) (as bases|os dados|o que tem))\b',
+    re.IGNORECASE,
 )
 
 
@@ -83,6 +96,17 @@ def _latency_bucket(elapsed: float) -> str:
     if elapsed < 60:
         return "30-60s"
     return ">60s"
+_SALARY_RE = re.compile(
+    r'\b(salario|salários|salario|remuneracao|remuneração|quanto ganha|quanto recebe|'
+    r'quanto ganhou|quanto recebia|folha de pagamento|folha salarial|holerite|contracheque|'
+    r'pagamento de funcionario|pagamento de colaborador|pjt|p\.j\.t)\b',
+    re.IGNORECASE,
+)
+_SALARY_BLOCK_MSG = (
+    "Nao tenho acesso a informacoes sobre salarios ou remuneracoes — "
+    "esses dados sao sensiveis e nao estao disponiveis para consulta."
+)
+
 _DATE_WITHOUT_YEAR = re.compile(r'(?<![/\d])(\d{1,2}/\d{1,2})(?![\d/])')
 _DATE_YEAR_EXTRA_DIGITS = re.compile(r'\b(\d{1,2}/\d{1,2}/)(\d{5,})\b')
 _GREETING_RE = re.compile(
@@ -161,7 +185,7 @@ def _get_fallback_model() -> ChatOpenAI | None:
 
 
 def _make_sql_executor(model: ChatOpenAI) -> AgentExecutor:
-    tools = [DremioSalesQueryTool(), DremioDeliveryQueryTool(), DremioPaymentQueryTool(), DremioEstornosQueryTool(), DremioMetasQueryTool(), MySQLPurchasesQueryTool(), ChartTool(), ExcelExportTool()]
+    tools = [DremioSalesQueryTool(), DremioDeliveryQueryTool(), DremioPaymentQueryTool(), DremioEstornosQueryTool(), DremioMetasQueryTool(), DremioCortesiasQueryTool(), MySQLPurchasesQueryTool(), ChartTool(), ExcelExportTool()]
     agent = create_react_agent(llm=model, tools=tools, prompt=react_prompt)
     return AgentExecutor(
         agent=agent,
@@ -393,9 +417,15 @@ def generate_thinking_message(message: str) -> str:
             "Voce e o NINOIA, assistente interno de uma empresa de bares e restaurantes. "
             "O usuario acabou de fazer a seguinte pergunta:\n"
             f'"{message}"\n\n'
-            "Escreva UMA frase curta, amigavel e natural em portugues informando que voce ja vai buscar essa informacao. "
-            "Seja caloroso, direto e varie o jeito de falar. "
-            "NUNCA use emojis. NUNCA use mais de uma frase. NUNCA mencione tabelas, banco de dados ou tecnologia."
+            "Escreva UMA frase curta e natural em portugues avisando que ja vai buscar essa informacao. "
+            "REGRAS:\n"
+            "- Varie MUITO o estilo a cada vez: as vezes mais animado, as vezes mais direto, as vezes com humor leve, as vezes mais formal\n"
+            "- Varie o inicio da frase: nunca comece sempre com 'Claro', 'Ja' ou 'Vou'. Use tambem: 'Deixa eu', 'Um segundo', 'Boa pergunta', 'Ja resolvo', 'To buscando', 'Boa', 'Perfeito', 'Otimo', 'Me da um instante', 'Agora eu vejo', entre outros\n"
+            "- Conecte com o tema da pergunta quando possivel (ex: se for sobre vendas, mencione vendas; se for delivery, mencione delivery)\n"
+            "- Pode usar expressoes informais e brasileiras naturais\n"
+            "- NUNCA use emojis\n"
+            "- NUNCA use mais de uma frase\n"
+            "- NUNCA mencione banco de dados, tabela, sistema ou tecnologia"
         )
         result = _get_model().invoke(prompt)
         return result.content.strip()
@@ -453,6 +483,19 @@ def invoke_rag_agent(message: str, session_id: str, sender_name: str = "") -> st
 
 def route_and_invoke(message: str, session_id: str, sender_name: str = "", on_thinking=None) -> str:
     message = _complete_dates(message)
+
+    # Fast-path: pergunta sobre quais dados/bases estão disponíveis
+    if _BASES_RE.search(message):
+        _metric_inc("category:bases_info")
+        logger.info("Pergunta sobre bases de %s — resposta direta sem LLM", session_id)
+        _save_to_history(message, _BASES_LISTA, session_id)
+        return _BASES_LISTA
+
+    # Bloqueio de dados sensíveis: salário / remuneração
+    if _SALARY_RE.search(message):
+        _metric_inc("blocked:salary")
+        logger.info("Pergunta sobre salario bloqueada para %s: %.80s", session_id, message)
+        return _SALARY_BLOCK_MSG
 
     # Fast-path: saudações simples não precisam do router nem do agente
     if _GREETING_RE.match(message):

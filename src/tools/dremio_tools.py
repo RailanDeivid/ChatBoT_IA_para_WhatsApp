@@ -290,7 +290,7 @@ class DremioPaymentQueryTool(BaseTool):
         "casa_ajustado (TEXT, nome da CASA/estabelecimento), "
         "alavanca (TEXT, vertical/segmento. Valores: Bar, Restaurante, iraja), "
         "data (DATE, data do registro), "
-        "descricao_forma_pagamento (TEXT, nome da forma: VISA_CREDITO, DINHEIRO, PIX, etc.), "
+        "descricao_corretas (TEXT, nome da forma: VISA_CREDITO, DINHEIRO, PIX, etc.), "
         "pessoas (FLOAT, numero de pessoas), "
         "vl_recebido (DOUBLE, valor bruto recebido — use SUM(vl_recebido) para totais). "
         + _CODIGO_CASA_HINT
@@ -304,6 +304,59 @@ class DremioPaymentQueryTool(BaseTool):
 
     def _run(self, query: str) -> str:
         return _run_dremio_query("pagamentos", query)
+
+    async def _arun(self, query: str) -> str:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._run, query)
+
+
+class DremioCortesiasQueryTool(BaseTool):
+    name: str = "consultar_cortesias"
+    description: str = (
+        "QUANDO USAR: OBRIGATORIO chamar esta ferramenta para QUALQUER pergunta sobre CORTESIAS — "
+        "itens cortesia, produtos cortesia, cortesia por funcionario, cortesia por produto, "
+        "valor de cortesias, quantidade de cortesias, cortesia por casa ou por alavanca. "
+        "PALAVRAS-CHAVE que ativam esta ferramenta: cortesia, cortesias, item cortesia, "
+        "produto cortesia, cortesia de funcionario, cortesia por produto, total de cortesias, "
+        "quanto foi em cortesia, cortesias por periodo, cortesia por tipo. "
+        "NUNCA responda com dados de cortesias sem antes chamar esta ferramenta. "
+        "NUNCA invente valores — use SOMENTE os dados retornados pela ferramenta. "
+        "Executa SQL no Dremio. Tabela: views.\"AI_AGENTS\".\"fCortesias\". "
+        "SEMPRE agrupe as queries para trazer resultado limpo e direto. "
+        "Colunas disponíveis: "
+        "casa_ajustado (TEXT, nome da CASA/estabelecimento), "
+        "alavanca (TEXT, vertical/segmento. Valores: Bar, Restaurante, iraja), "
+        "codigo_casa (TEXT, codigo abreviado da casa — use para filtros rapidos), "
+        "data_evento (DATE, data da venda), "
+        "hora_item (INT, hora do lancamento), "
+        "terminal (TEXT, terminal/origem: poc, app, ifood, etc.), "
+        "nome_funcionario (TEXT, funcionario que registrou a cortesia — use GROUP BY para ranking), "
+        "nome_cliente (TEXT, nome do cliente que recebeu a cortesia), "
+        "codigo_produto (INT, codigo do produto), "
+        "descricao_produto (TEXT, nome do produto — use ilike(descricao_produto, '%termo%') para busca), "
+        "descricao_produto_grupo (TEXT, grupo do produto ex: CERVEJAS E CHOPPS), "
+        "quantidade (FLOAT, quantidade de itens cortesia), "
+        "valor_produto (FLOAT, valor unitario do produto), "
+        "valor_venda (FLOAT, valor de venda do item), "
+        "desconto_itens (FLOAT, desconto aplicado no item), "
+        "desconto_conta (FLOAT, desconto aplicado na conta), "
+        "valor_conta (FLOAT, valor total da conta), "
+        "total_cortesias (FLOAT, valor total da cortesia — use SEMPRE SUM(total_cortesias) para totalizar cortesias), "
+        "descricao_cortesias (TEXT, tipo/motivo da cortesia ex: DESCONTO ALIFE — use GROUP BY para agrupar por tipo), "
+        "observacao_cortesias (TEXT, observacao livre registrada na cortesia), "
+        "Grande_Grupo (TEXT, categoria ampla: ALIMENTOS, BEBIDAS, VINHOS, OUTRAS COMPRAS), "
+        "Sub_Grupo (TEXT, subcategoria: CERVEJAS, CHOPS, DRINKS, etc.). "
+        + _CODIGO_CASA_HINT
+        + "SINTAXE DE DATAS no Dremio: DATE_SUB(CURRENT_DATE, 1) para ontem, "
+        "DATE_TRUNC('month', CURRENT_DATE) para inicio do mes. "
+        "NUNCA use CURRENT_DATE - INTERVAL nem CURRENT_DATE - 1. "
+        "SEMANA FECHADA: calcule datas exatas (segunda a domingo) e use BETWEEN 'AAAA-MM-DD' AND 'AAAA-MM-DD'. "
+        "OBRIGATORIO: SQL 100% valido para Dremio. "
+        "Input: query SQL valida para Dremio."
+    )
+
+    def _run(self, query: str) -> str:
+        return _run_dremio_query("cortesias", query)
 
     async def _arun(self, query: str) -> str:
         loop = asyncio.get_running_loop()

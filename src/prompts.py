@@ -10,7 +10,7 @@ Regras obrigatorias:
 (2) Nunca invente valores. Use apenas os dados retornados pelas ferramentas.
 (3) SEMPRE consulte as ferramentas para perguntas sobre dados, mesmo perguntas parecidas com anteriores.
 (3a) NUNCA rejeite uma data nem peça confirmacao de data. Se receber uma data, use-a diretamente na consulta da ferramenta. Qualquer data no formato DD/MM/AAAA e valida.
-(4) Para faturamento, receita ou vendas: use consultar_vendas. Para DELIVERY: use consultar_delivery. Para FORMAS DE PAGAMENTO: use consultar_formas_pagamento. Para ESTORNOS/cancelamentos: use consultar_estornos.
+(4) Para faturamento, receita ou vendas: use consultar_vendas. Para DELIVERY: use consultar_delivery. Para FORMAS DE PAGAMENTO: use consultar_formas_pagamento. Para ESTORNOS/cancelamentos: use consultar_estornos. Para CORTESIAS: use consultar_cortesias.
 (4a) Para METAS, ORCAMENTO, BUDGET, atingimento, delta, rel vs meta, real vs meta, fluxo vs meta: use consultar_metas. Definicoes: "atingimento" = (realizado/meta)*100%; "delta" = realizado-meta; "vs meta"/"rel vs meta" = exibir realizado + meta + delta + atingimento%; "abaixo/acima da meta" = filtrar por realizado < ou > meta. Para comparar vendas vs meta: use CTE juntando fSales + dMetas_Casas em uma unica query — NUNCA use consultar_vendas separadamente. Para fluxo vs meta: use SUM(distribuicao_pessoas) e SUM("META FLUXO"). FORMATO OBRIGATORIO para respostas de metas — para cada casa/alavanca use este bloco:
 "*NOME DA CASA/ALAVANCA*
 - Periodo: DD/MM/AAAA a DD/MM/AAAA
@@ -93,6 +93,12 @@ FORMATO DE RESPOSTA: para cada dimensao, exiba:
 Repita o bloco para cada item, separados por linha em branco.
 Apos todos os itens, adicione SEMPRE uma nota explicativa separada por linha em branco:
 "_O preco medio simples e a media aritmetica dos precos unitarios de todas as compras. O preco medio ponderado leva em conta a quantidade adquirida em cada compra — quanto maior o volume, maior o peso daquele preco no resultado final._"
+
+(18) BUSCA POR NOME DE PRODUTO/ITEM — NUNCA use = com o nome exato fornecido pelo usuario. SEMPRE use ilike() no Dremio ou LIKE no MySQL para filtrar por produto/item:
+  - Vendas/Delivery (Dremio): ilike(descricao_produto, '%termo_do_usuario%')
+  - Compras (MySQL): `Descrição Item` LIKE '%termo_do_usuario%'
+  Sintaxe ILIKE no Dremio: ilike(nome_da_coluna, '%texto%') — funcao, NUNCA operador infix.
+  Se retornar vazio: informe que nao encontrou produtos com esse nome e sugira verificar a grafia.
 
 Voce tem acesso as seguintes ferramentas:
 {tools}
@@ -182,7 +188,7 @@ general_prompt = PromptTemplate.from_template(GENERAL_PROMPT_TEMPLATE)
 ROUTER_PROMPT_TEMPLATE = """Classifique a pergunta em uma das categorias abaixo. Responda SOMENTE com a palavra da categoria, sem explicacao, sem pontuacao, sem aspas.
 
 CATEGORIAS:
-- sql: vendas, faturamento, receita, compras, fornecedores, ticket medio, fluxo, metas, orcamento, budget, SSS, delivery, estornos, formas de pagamento
+- sql: vendas, faturamento, receita, compras, fornecedores, ticket medio, fluxo, metas, orcamento, budget, SSS, delivery, estornos, formas de pagamento, cortesias
 - docs: politicas, procedimentos, organograma, contatos, emails, ramais, quem procurar, manuais, regras internas
 - ambos: precisa de dados numericos E informacoes de documentos ao mesmo tempo
 - geral: saudacoes, agradecimentos, perguntas fora do escopo de negocio

@@ -11,6 +11,39 @@ from src.tools.utils import strip_markdown
 
 logger = logging.getLogger(__name__)
 
+# CNPJs de PJTs (salário disfarçado) — NUNCA devem aparecer em consultas de compras
+_BLOCKED_CNPJS = (
+    "'45880307000162'","'48394438000128'","'44760651000155'","'22951189000130'",
+    "'34006246000192'","'44533475000119'","'29219157000194'","'44131120000101'",
+    "'47959350000143'","'47947110000129'","'27726278000105'","'49863345000168'",
+    "'37895137000161'","'30170858000165'","'46293836000122'","'51882614000119'",
+    "'43341925000109'","'36163183000103'","'44909381000100'","'46786766000144'",
+    "'11513881000160'","'43136020000105'","'44945149000119'","'01360688633'",
+)
+_PURCHASE_EXCLUSION = (
+    "cpf_cnpj_emitente NOT IN (" + ",".join(_BLOCKED_CNPJS) + ")"
+    " AND Fantasia NOT IN ('ALIFE')"
+    " AND `Descrição Item` NOT IN ('CONSULTORIA')"
+)
+
+_WHERE_RE    = re.compile(r'\bWHERE\b', re.IGNORECASE)
+_CLAUSE_RE   = re.compile(r'\b(GROUP BY|ORDER BY|LIMIT|HAVING)\b', re.IGNORECASE)
+
+
+def _inject_exclusion_filter(query: str) -> str:
+    """Garante que toda query de compras exclui CNPJs/fantasias/itens sensíveis."""
+    query = query.strip().rstrip(';')
+    if _WHERE_RE.search(query):
+        query = _WHERE_RE.sub(f'WHERE {_PURCHASE_EXCLUSION} AND', query, count=1)
+    else:
+        m = _CLAUSE_RE.search(query)
+        if m:
+            query = query[:m.start()] + f'WHERE {_PURCHASE_EXCLUSION} ' + query[m.start():]
+        else:
+            query = query + f' WHERE {_PURCHASE_EXCLUSION}'
+    return query
+
+
 # Hint compacto incluído na description para o agente LLM já gerar o SQL correto
 _ABREV_HINT = (
     "Abreviações válidas para `Fantasia` (use SEMPRE o nome fantasia no SQL, nunca a abreviação): "
@@ -57,6 +90,8 @@ class MySQLPurchasesQueryTool(BaseTool):
         "`V. Unitário Convertido` (DECIMAL, valor unitario convertido), "
         "`V. Total` (DECIMAL, valor total da compra — use SUM(`V. Total`) para totalizar). "
         + _ABREV_HINT
+        + "BUSCA POR PRODUTO: NUNCA filtre `Descrição Item` com = usando o nome exato do usuario. "
+        "Use SEMPRE `Descrição Item` LIKE '%termo%' para busca por nome de produto. "
         + "AGRUPAMENTO TEMPORAL NO MYSQL: "
         "dia a dia → CAST(`D. Lançamento` AS DATE) AS data; "
         "por mes → DATE_FORMAT(`D. Lançamento`, '%m-%Y') AS mes_ano; "
@@ -71,6 +106,7 @@ class MySQLPurchasesQueryTool(BaseTool):
         query = _replace_abbreviations_in_query(query)
         if query != query_original:
             logger.info("[compras] Abreviacoes substituidas na query.")
+        query = _inject_exclusion_filter(query)
         logger.info("[compras] Executando query MySQL: %s", query)
         t0 = time.time()
         try:

@@ -199,6 +199,31 @@ def unblock(phone: str, unblocked_by: str) -> str:
     return f"✅ {row['nome']} ({phone}) desbloqueado com sucesso."
 
 
+def update_phone(old_phone: str, new_phone: str, updated_by: str) -> str:
+    """Atualiza o telefone de um usuário. Retorna mensagem de feedback."""
+    with _get_conn() as conn:
+        row = conn.execute(
+            "SELECT nome FROM authorized_users WHERE telefone = ?", (old_phone,)
+        ).fetchone()
+        if not row:
+            return f"⚠️ Número {old_phone} não encontrado."
+
+        exists = conn.execute(
+            "SELECT 1 FROM authorized_users WHERE telefone = ?", (new_phone,)
+        ).fetchone()
+        if exists:
+            return f"⚠️ O número {new_phone} já está cadastrado."
+
+        conn.execute(
+            "UPDATE authorized_users SET telefone=?, alterado_em=datetime('now', '-3 hours') WHERE telefone=?",
+            (new_phone, old_phone),
+        )
+        conn.commit()
+
+    logger.info("Telefone de %s alterado de %s para %s por %s", row["nome"], old_phone, new_phone, updated_by)
+    return f"✅ Telefone de *{row['nome']}* atualizado: {old_phone} → {new_phone}"
+
+
 def delete_user(phone: str, deleted_by: str) -> str:
     """Remove permanentemente um usuário. Retorna mensagem de feedback."""
     with _get_conn() as conn:
