@@ -1,16 +1,44 @@
+import hashlib
 import logging
 import threading
 import time
 from typing import TypeVar, Callable
 
 import pandas as pd
+import redis as redis_lib
 import requests
 
-from src.config import DREMIO_HOST, DREMIO_USER, DREMIO_PASSWORD, RETRY_MAX_ATTEMPTS, RETRY_BACKOFF_BASE, DREMIO_POLL_INITIAL, DREMIO_POLL_MAX, DREMIO_MAX_ROWS
+from src.config import DREMIO_HOST, DREMIO_USER, DREMIO_PASSWORD, RETRY_MAX_ATTEMPTS, RETRY_BACKOFF_BASE, DREMIO_POLL_INITIAL, DREMIO_POLL_MAX, DREMIO_MAX_ROWS, REDIS_URL, QUERY_CACHE_TTL
 
 logger = logging.getLogger(__name__)
 
 _T = TypeVar("_T")
+
+_redis = redis_lib.Redis.from_url(REDIS_URL, decode_responses=True)
+_QCACHE_PREFIX = "qcache:"
+
+
+def _qcache_key(sql: str) -> str:
+    return _QCACHE_PREFIX + hashlib.md5(sql.strip().lower().encode()).hexdigest()
+
+
+def _cache_get(sql: str) -> pd.DataFrame | None:
+    try:
+        data = _redis.get(_qcache_key(sql))
+        if data:
+            logger.info("[dremio-cache] HIT para query: %.80s", sql)
+            return pd.read_json(data, orient="split")
+    except Exception as e:
+        logger.warning("[dremio-cache] Erro ao ler cache: %s", e)
+    return None
+
+
+def _cache_set(sql: str, df: pd.DataFrame) -> None:
+    try:
+        _redis.setex(_qcache_key(sql), QUERY_CACHE_TTL, df.to_json(orient="split"))
+        logger.info("[dremio-cache] Resultado cacheado (TTL=%ds, %d linhas): %.80s", QUERY_CACHE_TTL, len(df), sql)
+    except Exception as e:
+        logger.warning("[dremio-cache] Erro ao gravar cache: %s", e)
 
 
 def _with_retry(fn: Callable[[], _T], label: str) -> _T:
@@ -59,7 +87,11 @@ def _get_token(host: str, username: str, password: str) -> str:
 
 
 def client(sql: str) -> pd.DataFrame:
-    """Executa query SQL no Dremio e retorna DataFrame."""
+    """Executa query SQL no Dremio e retorna DataFrame (com cache Redis)."""
+    cached = _cache_get(sql)
+    if cached is not None:
+        return cached
+
     t_total = time.time()
     logger.debug("Token Dremio sendo obtido...")
     token = _get_token(DREMIO_HOST, DREMIO_USER, DREMIO_PASSWORD)
@@ -146,4 +178,7 @@ def client(sql: str) -> pd.DataFrame:
 
     elapsed_total = time.time() - t_total
     logger.info("Dremio: %d linhas retornadas em %.1fs (job=%s)", len(all_rows), elapsed_total, job_id)
-    return pd.DataFrame(all_rows, columns=columns) if all_rows else pd.DataFrame(columns=columns)
+    df = pd.DataFrame(all_rows, columns=columns) if all_rows else pd.DataFrame(columns=columns)
+    if not df.empty:
+        _cache_set(sql, df)
+    return df

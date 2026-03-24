@@ -1,13 +1,42 @@
+import hashlib
 import logging
 import threading
 import time
 
 import pandas as pd
+import redis as redis_lib
 from mysql.connector.pooling import MySQLConnectionPool
 
-from src.config import DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, RETRY_MAX_ATTEMPTS, RETRY_BACKOFF_BASE, MYSQL_POOL_SIZE
+from src.config import DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, RETRY_MAX_ATTEMPTS, RETRY_BACKOFF_BASE, MYSQL_POOL_SIZE, REDIS_URL, QUERY_CACHE_TTL
 
 logger = logging.getLogger(__name__)
+
+_redis = redis_lib.Redis.from_url(REDIS_URL, decode_responses=True)
+_QCACHE_PREFIX = "qcache:"
+
+
+def _qcache_key(sql: str) -> str:
+    return _QCACHE_PREFIX + hashlib.md5(sql.strip().lower().encode()).hexdigest()
+
+
+def _cache_get(sql: str) -> pd.DataFrame | None:
+    try:
+        data = _redis.get(_qcache_key(sql))
+        if data:
+            logger.info("[mysql-cache] HIT para query: %.80s", sql)
+            return pd.read_json(data, orient="split")
+    except Exception as e:
+        logger.warning("[mysql-cache] Erro ao ler cache: %s", e)
+    return None
+
+
+def _cache_set(sql: str, df: pd.DataFrame) -> None:
+    try:
+        _redis.setex(_qcache_key(sql), QUERY_CACHE_TTL, df.to_json(orient="split"))
+        logger.info("[mysql-cache] Resultado cacheado (TTL=%ds, %d linhas): %.80s", QUERY_CACHE_TTL, len(df), sql)
+    except Exception as e:
+        logger.warning("[mysql-cache] Erro ao gravar cache: %s", e)
+
 
 _pool: MySQLConnectionPool | None = None
 _pool_lock = threading.Lock()
@@ -34,9 +63,13 @@ def _get_pool() -> MySQLConnectionPool:
 
 def client(sql: str) -> pd.DataFrame:
     """
-    Executa uma query SQL no MySQL e retorna um DataFrame.
+    Executa uma query SQL no MySQL e retorna um DataFrame (com cache Redis).
     Usa connection pooling e retry com backoff exponencial.
     """
+    cached = _cache_get(sql)
+    if cached is not None:
+        return cached
+
     for attempt in range(1, RETRY_MAX_ATTEMPTS + 1):
         db = _get_pool().get_connection()
         cursor = None
@@ -45,7 +78,10 @@ def client(sql: str) -> pd.DataFrame:
             cursor.execute(sql)
             rows = cursor.fetchall()
             columns = [desc[0] for desc in cursor.description] if cursor.description else []
-            return pd.DataFrame(rows, columns=columns)
+            df = pd.DataFrame(rows, columns=columns)
+            if not df.empty:
+                _cache_set(sql, df)
+            return df
         except Exception as exc:
             # Erros de sintaxe SQL (1064) e acesso negado (1045) são permanentes — não adianta retry
             errno = getattr(exc, "errno", None)
