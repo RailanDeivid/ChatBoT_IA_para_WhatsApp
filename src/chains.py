@@ -1,4 +1,5 @@
 import concurrent.futures
+import hashlib
 import logging
 import re
 import threading
@@ -32,9 +33,26 @@ logger = logging.getLogger(__name__)
 _MAX_HISTORY = CONVERSATION_MAX_HISTORY
 _redis = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
+_FIRST_CONTACT_INTRO = (
+    "Sou a NINOIA, assistente interna. \n\n"
+    "Tenho acesso as seguintes bases de dados:\n\n"
+    "📊 *Vendas* — faturamento, ticket medio, fluxo de pessoas, produtos, funcionarios, descontos e Same Store Sales (SSS)\n\n"
+    "🛵 *Delivery* — pedidos e faturamento por plataforma (iFood, Rappi, app proprio)\n\n"
+    "↩️ *Estornos* — cancelamentos, devolucoes e motivos por produto/funcionario\n\n"
+    "🎯 *Metas* — realizado vs orcado, atingimento e delta por casa\n\n"
+    "💳 *Formas de pagamento* — receita por metodo (PIX, cartao, dinheiro, etc.)\n\n"
+    "🛒 *Compras* — pedidos de compra, fornecedores e notas fiscais de entrada\n\n"
+    "📄 *Documentos internos* — politicas, procedimentos, organograma e contatos\n\n"
+    "Como posso te ajudar hoje?"
+)
+
+
+def _msg_hash(message: str) -> str:
+    return hashlib.md5(message.lower().strip().encode()).hexdigest()
+
 
 def _cache_get(session_id: str, message: str) -> str | None:
-    key = f"cache:{session_id}:{message.lower().strip()}"
+    key = f"cache:{session_id}:{_msg_hash(message)}"
     try:
         return _redis.get(key)
     except redis.RedisError:
@@ -42,7 +60,7 @@ def _cache_get(session_id: str, message: str) -> str | None:
 
 
 def _cache_set(session_id: str, message: str, response: str) -> None:
-    key = f"cache:{session_id}:{message.lower().strip()}"
+    key = f"cache:{session_id}:{_msg_hash(message)}"
     try:
         _redis.setex(key, QUERY_CACHE_TTL, response)
         logger.info("Cache gravado para %s (TTL=%ds): %.60s", session_id, QUERY_CACHE_TTL, message)
@@ -68,7 +86,7 @@ def _latency_bucket(elapsed: float) -> str:
 _DATE_WITHOUT_YEAR = re.compile(r'(?<![/\d])(\d{1,2}/\d{1,2})(?![\d/])')
 _DATE_YEAR_EXTRA_DIGITS = re.compile(r'\b(\d{1,2}/\d{1,2}/)(\d{5,})\b')
 _GREETING_RE = re.compile(
-    r'^\s*(oi|ola|olá|eae|eai|e ai|e aí|hey|hi|hello|bom dia|boa tarde|boa noite|'
+    r'^\s*(oi+|ola|olá|eae|eai|e ai|e aí|hey|hi|hello|bom dia|boa tarde|boa noite|'
     r'tudo bem|tudo bom|tudo certo|salve|opa|fala|fala ai|boa|ok|okay)\s*[!?.,]*\s*$',
     re.IGNORECASE,
 )
@@ -254,10 +272,10 @@ def _build_invoke_input(message: str, history, sender_name: str) -> dict:
     if is_first_message and is_pure_greeting and sender_name:
         sender_context = (
             f"Nome do usuario: {sender_name}. "
-            f"Responda APENAS com: 'Ola, {sender_name}! NINOIA, assistente interno. Como posso ajudar?'"
+            f"Responda APENAS com: 'Oi, {sender_name}! {_FIRST_CONTACT_INTRO}'"
         )
     elif is_first_message and is_pure_greeting:
-        sender_context = "Responda APENAS com: 'Ola! NINOIA, assistente interno. Como posso ajudar?'"
+        sender_context = f"Responda APENAS com: 'Oi! {_FIRST_CONTACT_INTRO}'"
     elif sender_name:
         sender_context = f"Nome do usuario no WhatsApp: {sender_name}."
     else:
@@ -288,7 +306,7 @@ _ERROR_PREFIXES = (
     "Desculpe, nao consegui processar",
     "Nao encontrei informacoes",
     "Desculpe, ocorreu um erro ao consultar",
-    "Não consegui obter",
+    "Nao consegui obter",
 )
 
 
@@ -296,20 +314,22 @@ def _is_error_response(response: str) -> bool:
     return any(response.strip().startswith(p) for p in _ERROR_PREFIXES)
 
 
-def _save_to_history(message: str, response: str, session_id: str) -> None:
+def _save_to_history(message: str, response: str, session_id: str, history=None) -> None:
     if _is_error_response(response):
         logger.info("Resposta de erro — nao salva no historico de %s.", session_id)
         return
-    history = get_session_history(session_id)
+    if history is None:
+        history = get_session_history(session_id)
     history.add_user_message(message)
     history.add_ai_message(response)
     _trim_history(history)
     logger.debug("Historico de %s atualizado (%d mensagens).", session_id, len(history.messages))
 
 
-def _run_sql_agent(message: str, session_id: str, sender_name: str) -> str:
+def _run_sql_agent(message: str, session_id: str, sender_name: str, history=None) -> str:
     current_sender.set(session_id)
-    history = get_session_history(session_id)
+    if history is None:
+        history = get_session_history(session_id)
     history_len = len(history.messages)
     logger.info("[sql-agent] session=%s | historico=%d msgs | pergunta: %s", session_id, history_len, message)
     invoke_input = _build_invoke_input(message, history, sender_name)
@@ -337,8 +357,9 @@ def _run_sql_agent(message: str, session_id: str, sender_name: str) -> str:
         return 'Desculpe, ocorreu um erro ao processar sua pergunta.'
 
 
-def _run_rag_agent(message: str, session_id: str, sender_name: str) -> str:
-    history = get_session_history(session_id)
+def _run_rag_agent(message: str, session_id: str, sender_name: str, history=None) -> str:
+    if history is None:
+        history = get_session_history(session_id)
     logger.info("[rag-agent] session=%s | pergunta: %s", session_id, message)
     invoke_input = _build_invoke_input(message, history, sender_name)
     try:
@@ -383,8 +404,9 @@ def generate_thinking_message(message: str) -> str:
         return "Ja vou buscar essa informacao para voce."
 
 
-def _run_general_response(message: str, session_id: str, sender_name: str) -> str:
-    history = get_session_history(session_id)
+def _run_general_response(message: str, session_id: str, sender_name: str, history=None) -> str:
+    if history is None:
+        history = get_session_history(session_id)
     invoke_input = _build_invoke_input(message, history, sender_name)
     try:
         prompt_text = general_prompt.format(**invoke_input)
@@ -409,11 +431,11 @@ def _classify_intent(message: str, history_text: str = "") -> str:
             if cat in raw:
                 return cat
 
-        logger.warning("Router retornou categoria invalida '%s', usando 'sql'", raw)
-        return "sql"
+        logger.warning("Router retornou categoria invalida '%s', usando 'geral'", raw)
+        return "geral"
     except Exception as e:
-        logger.error("Erro no router: %s — usando 'sql' como fallback", e)
-        return "sql"
+        logger.error("Erro no router: %s — usando 'geral' como fallback", e)
+        return "geral"
 
 
 def invoke_sql_agent(message: str, session_id: str, sender_name: str = "") -> str:
@@ -435,9 +457,17 @@ def route_and_invoke(message: str, session_id: str, sender_name: str = "", on_th
     # Fast-path: saudações simples não precisam do router nem do agente
     if _GREETING_RE.match(message):
         _metric_inc("category:geral")
-        logger.info("Saudacao de %s — gerando resposta via LLM", session_id)
-        response = _strip_emojis(_run_general_response(message, session_id, sender_name))
-        _save_to_history(message, response, session_id)
+        history = get_session_history(session_id)
+        is_first = len(history.messages) == 0
+        if is_first:
+            # Primeiro contato: resposta determinística, sem LLM
+            nome = f", {sender_name}" if sender_name else ""
+            response = f"Oi{nome}! {_FIRST_CONTACT_INTRO}"
+            logger.info("Saudacao inicial de %s — resposta direta sem LLM", session_id)
+        else:
+            logger.info("Saudacao de %s — gerando resposta via LLM", session_id)
+            response = _strip_emojis(_run_general_response(message, session_id, sender_name, history=history))
+        _save_to_history(message, response, session_id, history=history)
         return response
 
     cached = _cache_get(session_id, message)
@@ -448,6 +478,7 @@ def route_and_invoke(message: str, session_id: str, sender_name: str = "", on_th
 
     _metric_inc("requests_total")
     history = get_session_history(session_id)
+    is_first_message = len(history.messages) == 0
     history_text = ""
     if history.messages:
         lines = []
@@ -468,14 +499,14 @@ def route_and_invoke(message: str, session_id: str, sender_name: str = "", on_th
     t_start = time.time()
 
     if category == "sql":
-        response = _run_sql_agent(message, session_id, sender_name)
+        response = _run_sql_agent(message, session_id, sender_name, history=history)
         elapsed = time.time() - t_start
         logger.info("Agente SQL respondeu em %.1fs", elapsed)
         _metric_inc(f"latency:sql:{_latency_bucket(elapsed)}")
         if response.startswith("Desculpe"):
             _metric_inc("errors:sql")
     elif category == "docs":
-        response = _run_rag_agent(message, session_id, sender_name)
+        response = _run_rag_agent(message, session_id, sender_name, history=history)
         elapsed = time.time() - t_start
         logger.info("Agente RAG respondeu em %.1fs", elapsed)
         _metric_inc(f"latency:rag:{_latency_bucket(elapsed)}")
@@ -495,8 +526,13 @@ def route_and_invoke(message: str, session_id: str, sender_name: str = "", on_th
 
     response = _strip_emojis(response)
 
+    if is_first_message:
+        nome = f", {sender_name}" if sender_name else ""
+        intro = f"Oi{nome}! Sou a NINOIA, assistente interna.\n\n"
+        response = intro + response
+
     if category != "geral" and not _is_error_response(response):
         _cache_set(session_id, message, response)
 
-    _save_to_history(message, response, session_id)
+    _save_to_history(message, response, session_id, history=history)
     return response

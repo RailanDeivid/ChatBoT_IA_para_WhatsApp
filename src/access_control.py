@@ -28,7 +28,7 @@ def init_db() -> None:
                 adicionado_por      TEXT,
                 adicionado_por_tel  TEXT,
                 adicionado_por_nome TEXT,
-                criado_em           TEXT DEFAULT (datetime('now')),
+                criado_em           TEXT DEFAULT (datetime('now', '-3 hours')),
                 alterado_em         TEXT
             )
         """)
@@ -60,8 +60,8 @@ def _upsert_seed(user: dict) -> None:
         ).fetchone()
         if not row:
             conn.execute(
-                """INSERT INTO authorized_users (telefone, nome, cargo, casa, is_admin, adicionado_por)
-                   VALUES (?, ?, ?, ?, ?, 'sistema')""",
+                """INSERT INTO authorized_users (telefone, nome, cargo, casa, is_admin, adicionado_por, criado_em)
+                   VALUES (?, ?, ?, ?, ?, 'sistema', datetime('now', '-3 hours'))""",
                 (user["telefone"], user["nome"], user["cargo"], user["casa"], user["is_admin"]),
             )
             logger.info("Usuário seed inserido: %s (%s)", user["nome"], user["telefone"])
@@ -135,7 +135,7 @@ def authorize(phone: str, nome: str, cargo: str, casa: str, added_by_tel: str, a
                 """UPDATE authorized_users
                    SET nome=?, cargo=?, casa=?, is_admin=?, active=1,
                        adicionado_por=?, adicionado_por_tel=?, adicionado_por_nome=?,
-                       alterado_em=datetime('now')
+                       alterado_em=datetime('now', '-3 hours')
                    WHERE telefone=?""",
                 (nome, cargo, casa, int(admin), added_by_tel, added_by_tel, added_by_nome, phone),
             )
@@ -144,8 +144,8 @@ def authorize(phone: str, nome: str, cargo: str, casa: str, added_by_tel: str, a
             conn.execute(
                 """INSERT INTO authorized_users
                        (telefone, nome, cargo, casa, is_admin, adicionado_por,
-                        adicionado_por_tel, adicionado_por_nome)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                        adicionado_por_tel, adicionado_por_nome, criado_em)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-3 hours'))""",
                 (phone, nome, cargo, casa, int(admin), added_by_tel, added_by_tel, added_by_nome),
             )
             action = "autorizado"
@@ -168,7 +168,7 @@ def revoke(phone: str, revoked_by: str) -> str:
             return f"⚠️ {row['nome']} já estava bloqueado."
 
         conn.execute(
-            "UPDATE authorized_users SET active=0, alterado_em=datetime('now') WHERE telefone=?",
+            "UPDATE authorized_users SET active=0, alterado_em=datetime('now', '-3 hours') WHERE telefone=?",
             (phone,)
         )
         conn.commit()
@@ -190,7 +190,7 @@ def unblock(phone: str, unblocked_by: str) -> str:
             return f"⚠️ {row['nome']} já está ativo."
 
         conn.execute(
-            "UPDATE authorized_users SET active=1, alterado_em=datetime('now') WHERE telefone=?",
+            "UPDATE authorized_users SET active=1, alterado_em=datetime('now', '-3 hours') WHERE telefone=?",
             (phone,)
         )
         conn.commit()

@@ -111,11 +111,8 @@ async def handle_debounce(chat_id: str, sender_name: str = "") -> None:
             stop_typing = asyncio.Event()
             typing_task = asyncio.create_task(_keep_typing(chat_id, loop, stop_typing))
 
-            thinking_msg = await loop.run_in_executor(
-                None, lambda: generate_thinking_message(full_message)
-            )
-
             def _on_thinking():
+                thinking_msg = generate_thinking_message(full_message)
                 send_whatsapp_message(number=chat_id, text=thinking_msg)
 
             try:

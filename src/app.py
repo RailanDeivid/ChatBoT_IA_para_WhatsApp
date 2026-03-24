@@ -10,7 +10,7 @@ from src.message_buffer import buffer_message
 from src.integrations.evolution_api import get_media_base64, send_whatsapp_message
 from src.integrations.transcribe import transcribe_audio
 from src.access_control import init_db, is_authorized, is_admin, authorize, revoke, unblock, delete_user, list_users, get_user_nome
-from src.memory import clear_session, get_session_messages
+from src.memory import clear_session, clear_all_sessions, get_session_messages
 from src.config import UNAUTHORIZED_MESSAGE, REDIS_URL, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, EVOLUTION_AUTHENTICATION_API_KEY
 
 
@@ -181,9 +181,9 @@ async def webhook(payload: EvolutionWebhookPayload):
 
     # --- Comando /limpar (disponível para todos os usuários autorizados) ---
     if message and message.strip().lower() == "/limpar":
-        clear_session(chat_id)
-        logger.info("Historico limpo pelo usuario %s (%s).", sender_name or phone, phone)
-        send_whatsapp_message(chat_id, "Historico de conversa apagado.")
+        deleted = clear_all_sessions()
+        logger.info("Todos os historicos limpos por %s (%s). Sessoes removidas: %d", sender_name or phone, phone, deleted)
+        send_whatsapp_message(chat_id, f"Historico de todos os usuarios apagado. ({deleted} sessoes removidas)")
         return {"status": "ok"}
 
     # --- Comandos admin ---
