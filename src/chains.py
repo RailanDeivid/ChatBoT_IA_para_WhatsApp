@@ -351,6 +351,34 @@ def _save_to_history(message: str, response: str, session_id: str, history=None)
     logger.debug("Historico de %s atualizado (%d mensagens).", session_id, len(history.messages))
 
 
+def _generate_excel_filename(session_id: str) -> str:
+    """Gera nome de arquivo descritivo baseado na última pergunta do histórico."""
+    try:
+        history = get_session_history(session_id)
+        last_question = ""
+        for msg in reversed(history.messages):
+            if msg.type == "human":
+                last_question = msg.content
+                break
+        if not last_question:
+            return f"dados_{datetime.now().strftime('%d_%m_%Y')}.xlsx"
+        result = _get_model().invoke(
+            f"Gere APENAS o nome de um arquivo .xlsx (sem extensao, sem aspas, sem explicacao) "
+            f"descrevendo os dados desta consulta: '{last_question}'. "
+            f"Use underscores, datas no formato DD_MM_AAAA, sem acentos. "
+            f"Exemplos: vendas_restaurantes_16_03_a_22_03_2026 | compras_bebidas_TB_16_03_a_22_03_2026 | "
+            f"delivery_ifood_marco_2026. Responda SOMENTE o nome do arquivo."
+        )
+        name = result.content.strip().replace(" ", "_").replace("/", "_")
+        name = re.sub(r'[^\w\-]', '', name)
+        if not name:
+            return f"dados_{datetime.now().strftime('%d_%m_%Y')}.xlsx"
+        return f"{name}.xlsx"
+    except Exception as e:
+        logger.warning("[excel-fastpath] Falha ao gerar nome do arquivo: %s", e)
+        return f"dados_{datetime.now().strftime('%d_%m_%Y')}.xlsx"
+
+
 def _run_sql_agent(message: str, session_id: str, sender_name: str, history=None) -> str:
     current_sender.set(session_id)
     if history is None:
@@ -499,18 +527,21 @@ def route_and_invoke(message: str, session_id: str, sender_name: str = "", on_th
         return _SALARY_BLOCK_MSG
 
     # Fast-path: pedido de Excel sobre dados já consultados
+    # Só usa o cache se o DataFrame tiver colunas suficientes (>= 4).
+    # DataFrames com poucas colunas são consultas agregadas (ex: só Fantasia + total)
+    # e precisam que o agente gere uma query mais detalhada com datas, grupos, etc.
     if _EXCEL_RE.search(message):
         from src.tools.excel_tool import get_last_df, df_to_excel_marker
         last_df = get_last_df(session_id)
-        if last_df is not None:
-            date_str = datetime.now().strftime("%d_%m_%Y")
-            filename = f"dados_{date_str}.xlsx"
+        if last_df is not None and len(last_df.columns) >= 4:
+            filename = _generate_excel_filename(session_id)
             marker = df_to_excel_marker(last_df, filename)
             response = f"{marker}\nPlanilha gerada com os dados da ultima consulta!"
             _metric_inc("category:excel_fastpath")
-            logger.info("[excel-fastpath] Usando ultimo DataFrame da sessao %s (%d linhas)", session_id, len(last_df))
+            logger.info("[excel-fastpath] Usando ultimo DataFrame da sessao %s (%d linhas, %d colunas) | arquivo=%s", session_id, len(last_df), len(last_df.columns), filename)
             _save_to_history(message, response, session_id)
             return response
+        logger.info("[excel-fastpath] DataFrame com %d colunas — passando para o agente gerar query detalhada.", len(last_df.columns) if last_df is not None else 0)
 
     # Fast-path: saudações simples não precisam do router nem do agente
     if _GREETING_RE.match(message):
