@@ -11,5 +11,5 @@
 /.pytest_cache
 *access.db
 .claude
-
+docker-compose.yml
 /docs/
