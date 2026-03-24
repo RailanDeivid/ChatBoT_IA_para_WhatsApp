@@ -115,6 +115,11 @@ class MySQLPurchasesQueryTool(BaseTool):
                 logger.info("[compras] Query retornou 0 linhas em %.1fs.", time.time() - t0)
                 return "Nenhum resultado encontrado."
             logger.info("[compras] %d linhas retornadas em %.1fs.", len(df), time.time() - t0)
+            from src.tools.dremio_tools import current_sender
+            from src.tools.excel_tool import store_last_df
+            session_id = current_sender.get()
+            if session_id:
+                store_last_df(session_id, df)
             return df.to_string(index=False)
         except Exception as e:
             logger.error("[compras] ERRO apos %.1fs — %s: %s", time.time() - t0, type(e).__name__, e)

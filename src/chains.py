@@ -109,6 +109,7 @@ _SALARY_BLOCK_MSG = (
 
 _DATE_WITHOUT_YEAR = re.compile(r'(?<![/\d])(\d{1,2}/\d{1,2})(?![\d/])')
 _DATE_YEAR_EXTRA_DIGITS = re.compile(r'\b(\d{1,2}/\d{1,2}/)(\d{5,})\b')
+_EXCEL_RE = re.compile(r'\b(excel|planilha|xlsx)\b', re.IGNORECASE)
 _GREETING_RE = re.compile(
     r'^\s*(oi+|ola|olá|eae|eai|e ai|e aí|hey|hi|hello|bom dia|boa tarde|boa noite|'
     r'tudo bem|tudo bom|tudo certo|salve|opa|fala|fala ai|boa|ok|okay)\s*[!?.,]*\s*$',
@@ -496,6 +497,20 @@ def route_and_invoke(message: str, session_id: str, sender_name: str = "", on_th
         _metric_inc("blocked:salary")
         logger.info("Pergunta sobre salario bloqueada para %s: %.80s", session_id, message)
         return _SALARY_BLOCK_MSG
+
+    # Fast-path: pedido de Excel sobre dados já consultados
+    if _EXCEL_RE.search(message):
+        from src.tools.excel_tool import get_last_df, df_to_excel_marker
+        last_df = get_last_df(session_id)
+        if last_df is not None:
+            date_str = datetime.now().strftime("%d_%m_%Y")
+            filename = f"dados_{date_str}.xlsx"
+            marker = df_to_excel_marker(last_df, filename)
+            response = f"{marker}\nPlanilha gerada com os dados da ultima consulta!"
+            _metric_inc("category:excel_fastpath")
+            logger.info("[excel-fastpath] Usando ultimo DataFrame da sessao %s (%d linhas)", session_id, len(last_df))
+            _save_to_history(message, response, session_id)
+            return response
 
     # Fast-path: saudações simples não precisam do router nem do agente
     if _GREETING_RE.match(message):

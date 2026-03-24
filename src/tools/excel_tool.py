@@ -18,8 +18,41 @@ from src.tools.utils import extract_json
 logger = logging.getLogger(__name__)
 
 _EXCEL_KEY_PREFIX = "excel:"
+_LASTDF_KEY_PREFIX = "lastdf:"
 
 _redis = redis_lib.Redis.from_url(REDIS_URL, decode_responses=True)
+
+
+def store_last_df(session_id: str, df: "pd.DataFrame") -> None:
+    """Guarda o último DataFrame retornado por uma tool SQL para a sessão."""
+    try:
+        _redis.setex(f"{_LASTDF_KEY_PREFIX}{session_id}", EXCEL_TTL, df.to_json(orient="split"))
+    except Exception as e:
+        logger.warning("[lastdf] Erro ao salvar último DataFrame da sessão %s: %s", session_id, e)
+
+
+def df_to_excel_marker(df: "pd.DataFrame", filename: str) -> str:
+    """Converte um DataFrame em arquivo Excel, salva no Redis e retorna o marcador [EXCEL:...]."""
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Dados")
+    buf.seek(0)
+    b64 = base64.b64encode(buf.read()).decode()
+    key = f"{_EXCEL_KEY_PREFIX}{uuid.uuid4().hex}"
+    _redis.setex(key, EXCEL_TTL, b64)
+    logger.info("[excel] Arquivo gerado do cache: key=%s | %d linhas | arquivo=%s", key, len(df), filename)
+    return f"[EXCEL:{key}|caption:{filename}]"
+
+
+def get_last_df(session_id: str) -> "pd.DataFrame | None":
+    """Recupera o último DataFrame da sessão, se ainda estiver em cache."""
+    try:
+        data = _redis.get(f"{_LASTDF_KEY_PREFIX}{session_id}")
+        if data:
+            return pd.read_json(data, orient="split")
+    except Exception as e:
+        logger.warning("[lastdf] Erro ao recuperar DataFrame da sessão %s: %s", session_id, e)
+    return None
 
 
 class ExcelExportTool(BaseTool):

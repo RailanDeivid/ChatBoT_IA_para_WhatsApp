@@ -52,6 +52,10 @@ def _execute_dremio_query(label: str, query: str) -> str:
                 logger.info("[%s] Query retornou 0 linhas em %.1fs.", label, time.time() - t0)
                 return "Nenhum resultado encontrado."
             logger.info("[%s] %d linhas retornadas em %.1fs.", label, len(df), time.time() - t0)
+            session_id = current_sender.get()
+            if session_id:
+                from src.tools.excel_tool import store_last_df
+                store_last_df(session_id, df)
             return format_df(df)
         except TimeoutError as e:
             logger.warning("[%s] Timeout na tentativa %d/2 apos %.1fs — %s", label, attempt, time.time() - t0, e)
