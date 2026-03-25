@@ -355,7 +355,6 @@ class ChartTool(BaseTool):
     )
 
     def _run(self, query: str) -> str:
-        query = strip_markdown(query)
         try:
             params = extract_json(query)
         except (ValueError, Exception) as e:
