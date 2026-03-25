@@ -453,6 +453,7 @@ def generate_thinking_message(message: str) -> str:
             "- Conecte com o tema da pergunta quando possivel (ex: se for sobre vendas, mencione vendas; se for delivery, mencione delivery)\n"
             "- Pode usar expressoes informais e brasileiras naturais\n"
             "- NUNCA use emojis\n"
+            "- NUNCA use diminutivos (ex: rapidinho, agorinha, pouquinho, instaninho). Use sempre a forma plena das palavras\n"
             "- NUNCA use mais de uma frase\n"
             "- NUNCA mencione banco de dados, tabela, sistema ou tecnologia"
         )
