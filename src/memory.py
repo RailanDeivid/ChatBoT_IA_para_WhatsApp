@@ -4,7 +4,7 @@ from langchain_community.chat_message_histories import RedisChatMessageHistory
 
 from src.config import REDIS_URL
 
-_SESSION_TTL = 259200  # 72 horas — sessões expiram após inatividade
+_SESSION_TTL = 864000  # 10 dias — sessões expiram após inatividade
 
 
 def get_session_history(session_id: str) -> RedisChatMessageHistory:
