@@ -47,7 +47,7 @@ _BASES_LISTA = (
     "Como posso te ajudar hoje?"
 )
 
-_FIRST_CONTACT_INTRO = "Sou a NINOIA, seu assistente interno. \n\n" + _BASES_LISTA
+_FIRST_CONTACT_INTRO = "Sou o TATUDO AQUI, seu assistente interno.\n\n" + _BASES_LISTA
 
 _BASES_RE = re.compile(
     r'\b(quais (dados|bases|informacoes|informações|base de dados)|'
@@ -443,7 +443,7 @@ def generate_thinking_message(message: str) -> str:
     """Gera uma mensagem de espera contextual e amigavel baseada na pergunta do usuario."""
     try:
         prompt = (
-            "Voce e o NINOIA, assistente interno de uma empresa de bares e restaurantes. "
+            "Voce e o TATUDO AQUI, assistente interno de uma empresa de bares e restaurantes. "
             "O usuario acabou de fazer a seguinte pergunta:\n"
             f'"{message}"\n\n'
             "Escreva UMA frase curta e natural em portugues avisando que ja vai buscar essa informacao. "
@@ -618,7 +618,7 @@ def route_and_invoke(message: str, session_id: str, sender_name: str = "", on_th
 
     if is_first_message:
         nome = f", {sender_name}" if sender_name else ""
-        intro = f"Oi{nome}! Sou a NINOIA, assistente interna.\n\n"
+        intro = f"Oi{nome}! Sou o TATUDO AQUI, seu assistente interno.\n\n"
         response = intro + response
 
     if category != "geral" and not _is_error_response(response):
