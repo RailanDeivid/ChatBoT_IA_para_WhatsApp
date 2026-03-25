@@ -181,10 +181,13 @@ Apenas admins podem usar os comandos abaixo, exceto `/limpar` que está disponí
 | `/bloquear 5511999` | Desativa o acesso (sem apagar o registro) |
 | `/desbloquear 5511999` | Reativa usuário bloqueado |
 | `/remover 5511999` | Remove permanentemente |
+| `/atualizar 5511999 ; 5511888` | Atualiza o número de telefone de um usuário |
 | `/usuarios` | Lista usuários ativos e bloqueados |
 | `/usuarios admin` | Lista administradores |
+| `/historico 5511999` | Exibe o histórico de conversa de um usuário (últimas 72h) |
+| `/limpar_usuario 5511999` | Apaga o histórico de conversa de um usuário específico |
 | `/reindexar` | Indexa novos arquivos de `rag_files/` sem reiniciar |
-| `/limpar` | Apaga o histórico de conversa do usuário |
+| `/limpar` | Apaga o histórico de conversa de todos os usuários |
 | `/ajuda` | Exibe lista de comandos |
 
 > Se o número já existir (mesmo bloqueado), `/autorizar` **reativa e atualiza** os dados.

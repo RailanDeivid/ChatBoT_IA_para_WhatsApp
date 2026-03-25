@@ -269,6 +269,15 @@ def _handle_admin_command(message: str, admin_phone: str, sender_name: str = "")
             return "Uso: /historico 5511999999999"
         return _cmd_historico(phone_arg)
 
+    if cmd == "/limpar_usuario":
+        phone_arg = args.strip()
+        if not phone_arg:
+            return "Uso: /limpar_usuario 5511999999999"
+        session_id = f"{phone_arg}@s.whatsapp.net"
+        clear_session(session_id)
+        logger.info("[admin] Historico de %s limpo por %s (%s)", phone_arg, sender_name or admin_phone, admin_phone)
+        return f"Histórico de {phone_arg} apagado com sucesso."
+
     if cmd == "/reindexar":
         from src.vectorstore import reload_vectorstore
         ok, msg = reload_vectorstore()
@@ -295,6 +304,8 @@ def _handle_admin_command(message: str, admin_phone: str, sender_name: str = "")
             "→ Lista administradores cadastrados\n\n"
             "*/historico* 5511999\n"
             "→ Exibe o historico de conversa de um usuario (ultimas 72h)\n\n"
+            "*/limpar_usuario* 5511999\n"
+            "→ Apaga o historico de conversa de um usuario especifico\n\n"
             "*/reindexar*\n"
             "→ Indexa novos arquivos da pasta rag_files sem reiniciar\n\n"
             "*/limpar*\n"
