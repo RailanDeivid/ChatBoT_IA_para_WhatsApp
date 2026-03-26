@@ -219,7 +219,10 @@ async def webhook(payload: EvolutionWebhookPayload):
             if response:
                 logger.info("[admin] Resposta do comando para %s: %.120s", phone, response)
                 send_whatsapp_message(chat_id, response)
-                return {"status": "ok"}
+            else:
+                logger.warning("[admin] Comando desconhecido de %s (%s): %s", sender_name or phone, phone, message.strip())
+                send_whatsapp_message(chat_id, f"Comando não reconhecido: *{message.strip().split()[0]}*\n\nDigite */ajuda* para ver os comandos disponíveis.")
+            return {"status": "ok"}
         else:
             logger.warning("[admin] Tentativa de comando por nao-admin %s (%s): %s", sender_name or phone, phone, message.strip())
             send_whatsapp_message(chat_id, "Comando não reconhecido.")
