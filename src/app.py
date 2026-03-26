@@ -171,7 +171,8 @@ async def webhook(payload: EvolutionWebhookPayload):
     # --- Controle de acesso ---
     if not is_authorized(phone):
         logger.info("Acesso negado para %s (%s)", sender_name or phone, phone)
-        send_whatsapp_message(chat_id, UNAUTHORIZED_MESSAGE)
+        prefixo = f"{sender_name} não está autorizado" if sender_name else "Você não está autorizado"
+        send_whatsapp_message(chat_id, f"Olá! {prefixo} a usar este assistente. Entre em contato com o setor de dados (Luiz Mateus ou Railan)")
         return {"status": "ok"}
 
     # --- Rate limiting ---
