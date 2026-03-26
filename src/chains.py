@@ -340,13 +340,17 @@ def _is_error_response(response: str) -> bool:
 
 
 def _save_to_history(message: str, response: str, session_id: str, history=None) -> None:
+    import time
+    from langchain_core.messages import HumanMessage, AIMessage
+
     if _is_error_response(response):
         logger.info("Resposta de erro — nao salva no historico de %s.", session_id)
         return
     if history is None:
         history = get_session_history(session_id)
-    history.add_user_message(message)
-    history.add_ai_message(response)
+    ts = time.time()
+    history.add_message(HumanMessage(content=message, additional_kwargs={"timestamp": ts}))
+    history.add_message(AIMessage(content=response, additional_kwargs={"timestamp": ts}))
     _trim_history(history)
     logger.debug("Historico de %s atualizado (%d mensagens).", session_id, len(history.messages))
 

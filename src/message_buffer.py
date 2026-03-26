@@ -20,11 +20,29 @@ logger = logging.getLogger(__name__)
 redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 debounce_tasks: dict[str, asyncio.Task] = {}
 
-_CANCEL_WORDS = {"cancela", "cancel", "cancelar", "pare", "parar", "stop"}
+_CANCEL_EXACT = {
+    "cancela", "cancel", "cancelar", "pare", "parar", "stop",
+    "esquece", "não quero", "nao quero", "chega", "desiste", "desistir",
+}
+_CANCEL_PHRASES = {
+    "não quero mais", "nao quero mais", "esquece isso", "deixa pra lá",
+    "deixa pra la", "para tudo", "cancela isso", "cancela tudo",
+    "para isso", "esquece a pergunta",
+}
+_CANCEL_RESPONSES = [
+    "Ok, solicitação cancelada.",
+    "Tudo bem, cancelei por aqui.",
+    "Certo, processo interrompido.",
+    "Ok, deixa pra lá então.",
+    "Entendido, cancelei.",
+]
 
 
 def _is_cancel_command(message: str) -> bool:
-    return message.strip().lower() in _CANCEL_WORDS
+    msg = message.strip().lower()
+    if msg in _CANCEL_EXACT:
+        return True
+    return any(phrase in msg for phrase in _CANCEL_PHRASES)
 
 
 async def _deliver_media(
@@ -61,8 +79,9 @@ async def buffer_message(chat_id: str, message: str, sender_name: str = "", mess
         await redis_client.delete(buffer_key)
         debounce_tasks.pop(chat_id, None)
         loop = asyncio.get_running_loop()
+        cancel_msg = random.choice(_CANCEL_RESPONSES)
         await loop.run_in_executor(
-            None, lambda: send_whatsapp_message(number=chat_id, text="Ok, operacao cancelada.")
+            None, lambda: send_whatsapp_message(number=chat_id, text=cancel_msg)
         )
         return
 

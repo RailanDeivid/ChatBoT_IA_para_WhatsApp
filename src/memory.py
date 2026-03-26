@@ -15,12 +15,20 @@ def get_session_history(session_id: str) -> RedisChatMessageHistory:
     )
 
 
-def get_session_messages(session_id: str) -> list[dict]:
-    """Retorna as mensagens do histórico de uma sessão como lista de dicts {role, content}."""
+def get_session_messages(session_id: str, since_ts: float | None = None) -> list[dict]:
+    """Retorna as mensagens do histórico de uma sessão como lista de dicts {role, content}.
+
+    Se ``since_ts`` for fornecido, retorna apenas mensagens com timestamp >= since_ts.
+    Mensagens sem timestamp (gravadas antes dessa funcionalidade) são sempre incluídas.
+    """
+    import time as _time
     history = get_session_history(session_id)
     result = []
     for msg in history.messages:
         role = getattr(msg, "type", None) or msg.__class__.__name__.lower()
+        ts = (msg.additional_kwargs or {}).get("timestamp")
+        if since_ts is not None and ts is not None and ts < since_ts:
+            continue
         result.append({"role": role, "content": msg.content})
     return result
 

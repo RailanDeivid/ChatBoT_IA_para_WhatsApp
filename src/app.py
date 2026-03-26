@@ -1,4 +1,5 @@
 import logging
+import random
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -179,16 +180,40 @@ async def webhook(payload: EvolutionWebhookPayload):
         send_whatsapp_message(chat_id, "Você está enviando mensagens muito rapidamente. Aguarde um momento.")
         return {"status": "ok"}
 
-    # --- Comando /limpar (disponível para todos os usuários autorizados) ---
-    if message and message.strip().lower() == "/limpar":
-        deleted = clear_all_sessions()
-        logger.info("Todos os historicos limpos por %s (%s). Sessoes removidas: %d", sender_name or phone, phone, deleted)
-        send_whatsapp_message(chat_id, f"Historico de todos os usuarios apagado. ({deleted} sessoes removidas)")
+    # --- Confirmação pendente de /limpar (admin) ---
+    _limpar_key = f"pending_limpar:{phone}"
+    if is_admin(phone) and await _redis.exists(_limpar_key):
+        await _redis.delete(_limpar_key)
+        resposta_msg = (message or "").strip().lower()
+        if resposta_msg in ("sim", "s", "yes"):
+            deleted = clear_all_sessions()
+            logger.info("[admin] /limpar confirmado por %s (%s). Sessoes removidas: %d", sender_name or phone, phone, deleted)
+            reply = random.choice([
+                f"Pronto! Histórico de todos os usuários foi apagado. ({deleted} sessões removidas)",
+                f"Feito. {deleted} histórico(s) removido(s) com sucesso.",
+                f"Ok, segui com a exclusão. {deleted} sessão(ões) apagada(s).",
+            ])
+        else:
+            logger.info("[admin] /limpar cancelado por %s (%s)", sender_name or phone, phone)
+            reply = random.choice([
+                "Ok, processo cancelado. Nenhum histórico foi apagado.",
+                "Tudo bem, mantive os dados como estão.",
+                "Entendido, não fiz nada. Os históricos seguem intactos.",
+            ])
+        send_whatsapp_message(chat_id, reply)
         return {"status": "ok"}
 
     # --- Comandos admin ---
     if message and message.startswith("/"):
         if is_admin(phone):
+            # /limpar requer confirmação — intercepta antes de _handle_admin_command
+            if message.strip().lower() == "/limpar":
+                await _redis.setex(_limpar_key, 90, "1")
+                send_whatsapp_message(
+                    chat_id,
+                    "Tem certeza que deseja apagar o histórico de *todos* os usuários?\n\nResponda *SIM* para confirmar ou *NÃO* para cancelar.",
+                )
+                return {"status": "ok"}
             logger.info("[admin] Comando recebido de %s (%s): %s", sender_name or phone, phone, message.strip())
             response = _handle_admin_command(message.strip(), admin_phone=phone, sender_name=sender_name)
             if response:
@@ -219,6 +244,18 @@ async def webhook(payload: EvolutionWebhookPayload):
     return {"status": "ok"}
 
 
+def _param_error(uso: str) -> str:
+    """Retorna uma mensagem natural e variada pedindo que o admin corrija os parâmetros."""
+    templates = [
+        "Parece que os parâmetros estão incorretos. Tente novamente assim:\n{uso}",
+        "Não consegui identificar os parâmetros. O formato esperado é:\n{uso}",
+        "Algo não está certo nos parâmetros informados. Use:\n{uso}",
+        "Parâmetro ausente ou incorreto. Tente novamente:\n{uso}",
+        "Não foi possível executar o comando — verifique os parâmetros e tente:\n{uso}",
+    ]
+    return random.choice(templates).format(uso=uso)
+
+
 def _handle_admin_command(message: str, admin_phone: str, sender_name: str = "") -> str | None:
     """
     Processa comandos administrativos enviados via WhatsApp.
@@ -242,19 +279,19 @@ def _handle_admin_command(message: str, admin_phone: str, sender_name: str = "")
     if cmd == "/bloquear":
         phone = args.strip()
         if not phone:
-            return "Uso: /bloquear 5511999999999"
+            return _param_error("/bloquear 5511999999999")
         return revoke(phone, revoked_by=admin_phone)
 
     if cmd == "/desbloquear":
         phone = args.strip()
         if not phone:
-            return "Uso: /desbloquear 5511999999999"
+            return _param_error("/desbloquear 5511999999999")
         return unblock(phone, unblocked_by=admin_phone)
 
     if cmd == "/remover":
         phone = args.strip()
         if not phone:
-            return "Uso: /remover 5511999999999"
+            return _param_error("/remover 5511999999999")
         return delete_user(phone, deleted_by=admin_phone)
 
     if cmd == "/atualizar":
@@ -264,15 +301,24 @@ def _handle_admin_command(message: str, admin_phone: str, sender_name: str = "")
         return _cmd_usuarios(admin_only=args.strip().lower() == "admin")
 
     if cmd == "/historico":
-        phone_arg = args.strip()
-        if not phone_arg:
-            return "Uso: /historico 5511999999999"
-        return _cmd_historico(phone_arg)
+        parts_h = args.strip().split()
+        if not parts_h:
+            return _param_error("/historico 5511999999999 [dias]")
+        phone_arg = parts_h[0]
+        days_arg: int | None = None
+        if len(parts_h) >= 2:
+            try:
+                days_arg = int(parts_h[1])
+                if days_arg <= 0:
+                    return _param_error("/historico 5511999999999 [dias]  — o número de dias deve ser maior que zero")
+            except ValueError:
+                return _param_error("/historico 5511999999999 [dias]")
+        return _cmd_historico(phone_arg, days=days_arg)
 
     if cmd == "/limpar_usuario":
         phone_arg = args.strip()
         if not phone_arg:
-            return "Uso: /limpar_usuario 5511999999999"
+            return _param_error("/limpar_usuario 5511999999999")
         session_id = f"{phone_arg}@s.whatsapp.net"
         clear_session(session_id)
         logger.info("[admin] Historico de %s limpo por %s (%s)", phone_arg, sender_name or admin_phone, admin_phone)
@@ -302,14 +348,14 @@ def _handle_admin_command(message: str, admin_phone: str, sender_name: str = "")
             "→ Lista usuarios padrao cadastrados\n\n"
             "*/usuarios admin*\n"
             "→ Lista administradores cadastrados\n\n"
-            "*/historico* 5511999\n"
-            "→ Exibe o historico de conversa de um usuario (ultimas 72h)\n\n"
+            "*/historico* 5511999 dias\n"
+            "→ Exibe o historico de conversa de um usuario (todo o historico ou filtrado por dias)\n\n"
             "*/limpar_usuario* 5511999\n"
             "→ Apaga o historico de conversa de um usuario especifico\n\n"
+            "*/limpar*\n"
+            "→ Apaga o historico de conversa de todos os usuarios\n\n"
             "*/reindexar*\n"
             "→ Indexa novos arquivos da pasta rag_files sem reiniciar\n\n"
-            "*/limpar*\n"
-            "→ Apaga seu historico de conversa (disponivel a todos)\n\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n"
             "*Bases de dados disponíveis:*\n\n"
             "📊 *Vendas* — faturamento, ticket médio, fluxo de pessoas, produtos, funcionários, descontos\n\n"
@@ -333,7 +379,7 @@ def _cmd_autorizar(args: str, admin_phone: str) -> str:
     fields = [f.strip() for f in args.split(";")]
 
     if len(fields) < 4:
-        return "⚠️ Uso: /autorizar 5511999999999 ; Nome ; Cargo ; Casa"
+        return _param_error("/autorizar 5511999999999 ; Nome ; Cargo ; Casa")
 
     phone_part = fields[0]
     nome  = fields[1]
@@ -359,19 +405,31 @@ def _cmd_atualizar(args: str, admin_phone: str) -> str:
     """
     fields = [f.strip() for f in args.split(";")]
     if len(fields) < 2 or not fields[0] or not fields[1]:
-        return "⚠️ Uso: /atualizar 5511999999999 ; 5511888888888\n(numero atual ; numero novo)"
+        return _param_error("/atualizar 5511999999999 ; 5511888888888\n(numero atual ; numero novo)")
     return update_phone(fields[0], fields[1], updated_by=admin_phone)
 
 
-def _cmd_historico(phone: str) -> str:
-    """Retorna o histórico de conversa de um usuário (últimas 72h)."""
+def _cmd_historico(phone: str, days: int | None = None) -> str:
+    """Retorna o histórico de conversa de um usuário.
+
+    Se ``days`` for fornecido, filtra apenas mensagens dos últimos N dias.
+    Caso contrário, retorna todo o histórico disponível (até 10 dias).
+    """
+    import time
+
+    since_ts: float | None = None
+    if days is not None:
+        since_ts = time.time() - days * 86400
+
     session_id = f"{phone}@s.whatsapp.net"
-    messages = get_session_messages(session_id)
+    messages = get_session_messages(session_id, since_ts=since_ts)
+
+    periodo = f"últimos {days} dia(s)" if days is not None else "todo o histórico"
     if not messages:
-        return f"Nenhum histórico encontrado para {phone} nas últimas 72h."
+        return f"Nenhum histórico encontrado para {phone} ({periodo})."
 
     nome = get_user_nome(phone) or phone
-    lines = [f"*Histórico de {nome} ({phone}):*"]
+    lines = [f"*Histórico de {nome} ({phone}) — {periodo}:*"]
     for msg in messages:
         is_human = msg["role"] in ("human", "HumanMessage")
         prefix = "👤 *Usuário:*" if is_human else "🤖 *Assistente:*"
