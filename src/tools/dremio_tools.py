@@ -357,7 +357,7 @@ class DremioCortesiasQueryTool(BaseTool):
         "desconto_conta (FLOAT, desconto aplicado na conta), "
         "valor_conta (FLOAT, valor total da conta), "
         "total_cortesias (FLOAT, valor total da cortesia — use SEMPRE ROUND(SUM(total_cortesias), 0) para totalizar cortesias), "
-        "tipoDesconto (TEXT, tipo de desconto aplicado — 'Desconto Conta' ou 'Desconto Itens'. Use apenas se o usuario perguntar especificamente por tipo de desconto; retorna na estrutura: * Desconto Itens: R$ xxxx \\n * Desconto Conta: R$ xxxx), "
+        "tipoDesconto (TEXT, tipo de desconto aplicado — 'Desconto Conta' ou 'Desconto Itens'. Use apenas se o usuario perguntar especificamente por tipo de desconto; retorna na estrutura: * Desconto Itens: R$ xxxx \\n * Desconto Conta: R$ xxxx \\n *Total: R$ xxxx (soma dos dois tipos)), "
         "descricao_cortesias (TEXT, tipo/motivo da cortesia ex: DESCONTO ALIFE — use GROUP BY para agrupar por tipo), "
         "observacao_cortesias (TEXT, observacao livre registrada na cortesia), "
         "Grande_Grupo (TEXT, categoria ampla: ALIMENTOS, BEBIDAS, VINHOS, OUTRAS COMPRAS), "
