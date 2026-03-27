@@ -356,7 +356,7 @@ class DremioCortesiasQueryTool(BaseTool):
         "desconto_itens (FLOAT, desconto aplicado no item), "
         "desconto_conta (FLOAT, desconto aplicado na conta), "
         "valor_conta (FLOAT, valor total da conta), "
-        "total_cortesias (FLOAT, valor total da cortesia — use SEMPRE SUM(total_cortesias) para totalizar cortesias), "
+        "total_cortesias (FLOAT, valor total da cortesia — use SEMPRE ROUND(SUM(total_cortesias), 0) para totalizar cortesias), "
         "descricao_cortesias (TEXT, tipo/motivo da cortesia ex: DESCONTO ALIFE — use GROUP BY para agrupar por tipo), "
         "observacao_cortesias (TEXT, observacao livre registrada na cortesia), "
         "Grande_Grupo (TEXT, categoria ampla: ALIMENTOS, BEBIDAS, VINHOS, OUTRAS COMPRAS), "
@@ -367,7 +367,7 @@ class DremioCortesiasQueryTool(BaseTool):
         "NUNCA use CURRENT_DATE - INTERVAL nem CURRENT_DATE - 1. "
         "SEMANA FECHADA: calcule datas exatas (segunda a domingo) e use BETWEEN 'AAAA-MM-DD' AND 'AAAA-MM-DD'. "
         "No GROUP BY: use SEMPRE posicoes ordinais (1, 2, 3...). "
-        "Exemplo de query com filtro de data: SELECT data_evento AS data, casa_ajustado, SUM(total_cortesias) AS total FROM views.\"AI_AGENTS\".\"fCortesias\" WHERE data_evento BETWEEN 'AAAA-MM-DD' AND 'AAAA-MM-DD' GROUP BY 1, 2 ORDER BY 1. "
+        "Exemplo de query com filtro de data: SELECT data_evento AS data, casa_ajustado, ROUND(SUM(total_cortesias), 0) AS total FROM views.\"AI_AGENTS\".\"fCortesias\" WHERE data_evento BETWEEN 'AAAA-MM-DD' AND 'AAAA-MM-DD' GROUP BY 1, 2 ORDER BY 1. "
         "OBRIGATORIO: SQL 100% valido para Dremio. "
         "Input: query SQL valida para Dremio."
     )
