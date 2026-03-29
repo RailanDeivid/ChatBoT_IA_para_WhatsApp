@@ -54,7 +54,7 @@ def _with_retry(fn: Callable[[], _T], label: str) -> _T:
 
 _token_cache: dict[str, tuple[str, float]] = {}
 _token_lock = threading.Lock()
-_TOKEN_TTL = 3600  # tokens Dremio duram ~1h
+_TOKEN_TTL = 3300  # tokens Dremio duram ~1h — usa 55min para renovar antes de expirar
 
 
 def _get_token(host: str, username: str, password: str) -> str:
@@ -144,7 +144,6 @@ def client(sql: str) -> pd.DataFrame:
     else:
         raise TimeoutError(f"Timeout aguardando job Dremio ({max_wait}s)")
 
-    # Busca resultados com paginação completa (sem teto de páginas)
     all_rows: list = []
     columns: list = []
     offset = 0

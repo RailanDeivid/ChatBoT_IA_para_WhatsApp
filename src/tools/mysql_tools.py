@@ -67,6 +67,12 @@ def _replace_abbreviations_in_query(query: str) -> str:
 class MySQLPurchasesQueryTool(BaseTool):
     name: str = "consultar_compras"
     description: str = (
+        "ANALISES SUPORTADAS: total comprado por casa/periodo/categoria, ranking de fornecedores por volume, "
+        "mix de compras por grande grupo (alimentos/bebidas/vinhos), evolucao temporal de compras, "
+        "preco medio simples e ponderado por produto, CMC (Custo da Mercadoria Comprada) — ATENCAO: "
+        "nao temos CMV (exige estoque), apenas CMC. CMC% sobre vendas requer combinar com consultar_vendas. "
+        "FONTE: banco MySQL (DW_FS_022) — use SINTAXE MySQL (DATE_FORMAT, backticks em colunas com espaco). "
+        "NUNCA use TO_CHAR, DATE_TRUNC ou funcoes Dremio nesta ferramenta. "
         "QUANDO USAR: OBRIGATORIO chamar esta ferramenta para QUALQUER pergunta sobre COMPRAS, "
         "pedidos de compra, fornecedores ou notas fiscais de entrada. "
         "PALAVRAS-CHAVE que ativam esta ferramenta: compra, compras, comprou, fornecedor, fornecedores, "

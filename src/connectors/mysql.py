@@ -85,7 +85,10 @@ def client(sql: str) -> pd.DataFrame:
         except Exception as exc:
             # Erros de sintaxe SQL (1064) e acesso negado (1045) são permanentes — não adianta retry
             errno = getattr(exc, "errno", None)
-            if errno in (1064, 1045, 1146) or attempt == RETRY_MAX_ATTEMPTS:
+            # Erros permanentes: sintaxe (1064), acesso negado (1045), tabela inexistente (1146),
+            # banco inexistente (1049), coluna inexistente (1054), permissao negada (1142)
+            _PERMANENT_ERRORS = (1064, 1045, 1146, 1049, 1054, 1142)
+            if errno in _PERMANENT_ERRORS or attempt == RETRY_MAX_ATTEMPTS:
                 raise
             wait = RETRY_BACKOFF_BASE ** attempt
             logger.warning("MySQL falhou (tentativa %d/%d, errno=%s): %s — retry em %.0fs", attempt, RETRY_MAX_ATTEMPTS, errno, exc, wait)

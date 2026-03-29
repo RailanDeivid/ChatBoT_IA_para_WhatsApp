@@ -7,11 +7,8 @@ import pandas as pd
 def strip_markdown(query: str) -> str:
     """Remove blocos de markdown e JSON wrappers que o agente pode gerar."""
     query = query.strip()
-    # Remove blocos de markdown ```sql ... ```
-    query = re.sub(r'^```\w*\s*', '', query)
-    query = re.sub(r'\s*```$', '', query)
+    query = re.sub(r'^```\w*\s*|\s*```$', '', query)
     query = query.strip()
-    # Se o modelo retornou JSON (ex: {"SQL": "SELECT ..."} ou {"sql": "..."}), extrai o valor
     if query.startswith('{'):
         try:
             parsed = json.loads(query)
@@ -30,39 +27,40 @@ def extract_json(text: str) -> dict:
     Corrige problemas comuns do Grok: trailing commas, aspas simples, texto antes/depois do JSON.
     """
     text = text.strip()
-
-    # Remove blocos de markdown ```json ... ```
-    text = re.sub(r'^```\w*\s*', '', text)
-    text = re.sub(r'\s*```$', '', text)
+    text = re.sub(r'^```\w*\s*|\s*```$', '', text)
     text = text.strip()
 
-    # Tenta parsear diretamente primeiro (mais rápido para inputs bem formados)
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
 
-    # Extrai o primeiro objeto JSON { ... } da string, sem ser greedy além do necessário
-    # re.DOTALL permite newlines; o padrão evita capturar desde o primeiro { até o último }
     match = re.search(r'\{(?:[^{}]|\{[^{}]*\})*\}', text, re.DOTALL)
     if match:
         text = match.group(0)
 
-    # Corrige trailing commas antes de } ou ] (JSON invalido mas comum no Grok)
+    # trailing commas são comuns no Grok — corrige antes de parsear
     text = re.sub(r',\s*([}\]])', r'\1', text)
 
-    # Tenta parsear diretamente
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
 
-    # Ultima tentativa: aspas simples → duplas
+    # última tentativa: aspas simples → duplas
     try:
         text_fixed = text.replace("'", '"')
         return json.loads(text_fixed)
     except json.JSONDecodeError as e:
         raise ValueError(f"JSON invalido mesmo apos correcoes: {e}") from e
+
+
+_PCT_KEYWORDS = ("_pct", "pct_", "percent", "participacao", "atingimento", "variacao_pct", "delta_pct")
+
+
+def _is_pct_col(col: str) -> bool:
+    col_lower = col.lower()
+    return any(kw in col_lower for kw in _PCT_KEYWORDS)
 
 
 def format_df(df: pd.DataFrame) -> str:
@@ -71,7 +69,7 @@ def format_df(df: pd.DataFrame) -> str:
     for record in df.to_dict("records"):
         parts = []
         for col, val in record.items():
-            if isinstance(val, float) and not col.lower().endswith("_pct"):
+            if isinstance(val, float) and not _is_pct_col(col):
                 formatted = f"R$ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                 parts.append(f"{col}: {formatted}")
             else:

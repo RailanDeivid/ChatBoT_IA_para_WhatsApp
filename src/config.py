@@ -117,3 +117,6 @@ def _parse_seed_users(raw: str) -> list[dict]:
     return users
 
 SEED_USERS: list[dict] = _parse_seed_users(os.getenv("SEED_USERS", ""))
+
+# Contato de suporte exibido na mensagem de acesso negado
+SUPPORT_CONTACT = os.getenv("SUPPORT_CONTACT", "um administrador")

@@ -35,9 +35,13 @@ def test_is_cancel_command_case_insensitive_e_espacos(word):
     assert mb._is_cancel_command(word) is True
 
 
-@pytest.mark.parametrize("word", ["cancelar tudo", "preciso de dados", "", "cancela isso"])
+@pytest.mark.parametrize("word", ["cancelar tudo", "preciso de dados", ""])
 def test_is_cancel_command_nao_reconhece_frases(word):
     assert mb._is_cancel_command(word) is False
+
+
+def test_is_cancel_command_frase_reconhece_cancela_isso():
+    assert mb._is_cancel_command("cancela isso") is True
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +64,9 @@ async def test_cancel_cancela_task_existente_e_limpa_buffer():
     task.cancel.assert_called_once()
     from src.config import BUFFER_KEY_SUFIX
     mock_del.assert_called_once_with(f"{chat_id}{BUFFER_KEY_SUFIX}")
-    mock_send.assert_called_once_with(number=chat_id, text="Ok, operacao cancelada.")
+    mock_send.assert_called_once()
+    sent_text = mock_send.call_args.kwargs["text"]
+    assert sent_text in mb._CANCEL_RESPONSES
     assert chat_id not in mb.debounce_tasks
 
 

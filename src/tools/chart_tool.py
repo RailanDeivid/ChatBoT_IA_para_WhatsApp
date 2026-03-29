@@ -27,7 +27,6 @@ _CHART_TTL = 120  # segundos
 
 _redis = redis_lib.Redis.from_url(REDIS_URL, decode_responses=True)
 
-# ── Tema centralizado ──────────────────────────────────────────────────────────
 _THEME = {
     "primary":   "#1a6b2f",
     "accent":    "#2ecc71",
@@ -135,7 +134,6 @@ def _to_b64(fig) -> str:
     return base64.b64encode(buf.read()).decode()
 
 
-# ── Grafico de Barras ──────────────────────────────────────────────────────────
 def _build_bar_chart(df, titulo: str, col_categoria: str, col_valor: str) -> str:
     _apply_base_style()
     df = df[[col_categoria, col_valor]].dropna()
@@ -192,7 +190,6 @@ def _build_bar_chart(df, titulo: str, col_categoria: str, col_valor: str) -> str
     return _to_b64(fig)
 
 
-# ── Grafico de Linha ───────────────────────────────────────────────────────────
 def _build_line_chart(df, titulo: str, col_categoria: str, col_valor: str) -> str:
     _apply_base_style()
     df = df[[col_categoria, col_valor]].dropna()
@@ -210,20 +207,14 @@ def _build_line_chart(df, titulo: str, col_categoria: str, col_valor: str) -> st
     fig.patch.set_facecolor(_BG)
     ax.set_facecolor(_BG)
 
-    # Preenchimento gradiente abaixo da linha
     ax.fill_between(x, vals, alpha=0.12, color=_PRIMARY, zorder=1)
-
-    # Linha de sombra (mais grossa e transparente)
     ax.plot(x, vals, color=_ACCENT, linewidth=5, alpha=0.18, zorder=2,
             solid_capstyle="round")
-    # Linha principal
     ax.plot(x, vals, color=_PRIMARY, linewidth=2.8, zorder=3,
             solid_capstyle="round", solid_joinstyle="round")
-    # Marcadores nos pontos
     ax.scatter(x, vals, color=_BG, edgecolors=_PRIMARY,
                s=80, linewidth=2.5, zorder=4)
 
-    # Valores acima dos marcadores
     for xi, val in zip(x, vals):
         ax.text(xi, val + max(vals) * 0.035, _fmt(val),
                 ha="center", va="bottom", fontsize=8.5,
@@ -249,7 +240,6 @@ def _build_line_chart(df, titulo: str, col_categoria: str, col_valor: str) -> st
     return _to_b64(fig)
 
 
-# ── Grafico de Pizza ───────────────────────────────────────────────────────────
 def _build_pie_chart(df, titulo: str, col_categoria: str, col_valor: str) -> str:
     _apply_base_style()
     df = df[[col_categoria, col_valor]].dropna()
@@ -296,7 +286,6 @@ def _build_pie_chart(df, titulo: str, col_categoria: str, col_valor: str) -> str
         at.set_fontweight("bold")
         at.set_color("white")
 
-    # Legenda com valor absoluto e percentual
     legend_labels = [
         f"{lbl}  –  {_fmt(v)}  ({v/total*100:.1f}%)"
         for lbl, v in zip(labels, vals)
@@ -311,7 +300,6 @@ def _build_pie_chart(df, titulo: str, col_categoria: str, col_valor: str) -> str
         labelcolor=_TEXT_DARK,
     )
 
-    # Total no centro
     ax.text(0, 0, f"Total\n{_fmt(total)}", ha="center", va="center",
             fontsize=10, fontweight="bold", color=_TEXT_DARK)
 
@@ -321,7 +309,6 @@ def _build_pie_chart(df, titulo: str, col_categoria: str, col_valor: str) -> str
     return _to_b64(fig)
 
 
-# ── Ferramenta ─────────────────────────────────────────────────────────────────
 class ChartTool(BaseTool):
     name: str = "gerar_grafico"
     description: str = (

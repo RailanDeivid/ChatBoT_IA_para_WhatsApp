@@ -88,3 +88,36 @@ def test_get_user_nome(db):
 
 def test_get_user_nome_inexistente_retorna_telefone(db):
     assert access_control.get_user_nome("5599000") == "5599000"
+
+
+def test_update_phone_valido(db):
+    access_control.authorize("5511999", "João", "Dev", "SP", "5511000")
+    result = access_control.update_phone("5511999", "5511888", "5511000")
+    assert "5511888" in result
+    assert access_control.is_authorized("5511888")
+    assert not access_control.is_authorized("5511999")
+
+
+def test_update_phone_inexistente(db):
+    result = access_control.update_phone("5599999", "5511888", "5511000")
+    assert "⚠️" in result
+
+
+def test_update_phone_destino_ja_existe(db):
+    access_control.authorize("5511999", "João", "Dev", "SP", "5511000")
+    access_control.authorize("5511888", "Maria", "RH", "RJ", "5511000")
+    result = access_control.update_phone("5511999", "5511888", "5511000")
+    assert "⚠️" in result
+
+
+def test_list_users_retorna_todos(db):
+    access_control.authorize("5511111", "Ana", "Dev", "SP", "5511000")
+    access_control.authorize("5511222", "Bob", "TI", "RJ", "5511000", admin=True)
+    users = access_control.list_users()
+    telefones = [u["telefone"] for u in users]
+    assert "5511111" in telefones
+    assert "5511222" in telefones
+
+
+def test_list_users_vazio_sem_cadastro(db):
+    assert access_control.list_users() == []

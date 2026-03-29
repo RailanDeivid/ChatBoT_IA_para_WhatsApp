@@ -33,12 +33,10 @@ def init_db() -> None:
             )
         """)
         cols = [row[1] for row in conn.execute("PRAGMA table_info(authorized_users)").fetchall()]
-        # garante colunas antigas
         if "casa" not in cols:
             conn.execute("ALTER TABLE authorized_users ADD COLUMN casa TEXT")
         if "cargo" not in cols:
             conn.execute("ALTER TABLE authorized_users ADD COLUMN cargo TEXT")
-        # garante novas colunas de auditoria
         if "adicionado_por_tel" not in cols:
             conn.execute("ALTER TABLE authorized_users ADD COLUMN adicionado_por_tel TEXT")
         if "adicionado_por_nome" not in cols:
@@ -50,6 +48,9 @@ def init_db() -> None:
     from src.config import SEED_USERS
     for user in SEED_USERS:
         _upsert_seed(user)
+
+
+_UPDATABLE_SEED_COLS = {"casa", "cargo"}  # whitelist de colunas permitidas no UPDATE dinâmico
 
 
 def _upsert_seed(user: dict) -> None:
@@ -67,11 +68,11 @@ def _upsert_seed(user: dict) -> None:
             logger.info("Usuário seed inserido: %s (%s)", user["nome"], user["telefone"])
         else:
             # recupera casa/cargo perdidos por migration anterior
-            updates = {}
-            if not row["casa"]:
-                updates["casa"] = user["casa"]
-            if not row["cargo"]:
-                updates["cargo"] = user["cargo"]
+            # colunas validadas contra whitelist antes de construir SQL dinâmico
+            updates = {
+                k: user[k] for k in ("casa", "cargo")
+                if k in _UPDATABLE_SEED_COLS and not row[k] and user.get(k)
+            }
             if updates:
                 sets = ", ".join(f"{k}=?" for k in updates)
                 conn.execute(
@@ -81,10 +82,6 @@ def _upsert_seed(user: dict) -> None:
                 logger.info("Usuário seed atualizado: %s (%s)", user["nome"], user["telefone"])
         conn.commit()
 
-
-# ---------------------------------------------------------------------------
-# Consultas
-# ---------------------------------------------------------------------------
 
 def is_authorized(phone: str) -> bool:
     with _get_conn() as conn:
@@ -109,10 +106,6 @@ def list_users() -> list[dict]:
         ).fetchall()
     return [dict(r) for r in rows]
 
-
-# ---------------------------------------------------------------------------
-# Mutações (usadas pelos comandos admin via WhatsApp)
-# ---------------------------------------------------------------------------
 
 def get_user_nome(phone: str) -> str:
     """Retorna o nome do usuário pelo telefone, ou o próprio telefone se não encontrado."""

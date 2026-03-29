@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 # Número do remetente atual — setado em chains.py antes de invocar o agente
 current_sender: ContextVar[str] = ContextVar("current_sender", default="")
 
-# Semáforo para limitar queries simultâneas no Dremio
 _dremio_semaphore = threading.Semaphore(DREMIO_MAX_CONCURRENT)
 
 
@@ -24,7 +23,6 @@ def _run_dremio_query(label: str, query: str) -> str:
     """Executa query no Dremio e retorna resultado formatado. Compartilhado por todas as ferramentas Dremio."""
     query = strip_markdown(query)
 
-    # Se o semáforo estiver cheio, avisa o usuário que está na fila
     if not _dremio_semaphore.acquire(blocking=False):
         sender = current_sender.get()
         if sender:
@@ -75,7 +73,6 @@ def _execute_dremio_query(label: str, query: str) -> str:
             logger.error("[%s] ERRO apos %.1fs — %s: %s", label, time.time() - t0, type(e).__name__, e)
             return f"Erro ao consultar dados: {str(e)}"
 
-# Hint para o agente usar o código abreviado exato no campo codigo_casa
 _CODIGO_CASA_HINT = (
     "IMPORTANTE: o campo `codigo_casa` armazena os códigos abreviados das casas DIRETAMENTE. "
     "Use SEMPRE o código abreviado no SQL, NUNCA expanda para o nome completo. "
@@ -88,6 +85,11 @@ _CODIGO_CASA_HINT = (
 class DremioSalesQueryTool(BaseTool):
     name: str = "consultar_vendas"
     description: str = (
+        "ANALISES SUPORTADAS: faturamento total ou por casa/vertical/categoria, ticket medio, fluxo de pessoas, "
+        "ranking de produtos mais vendidos, mix de vendas por categoria (alimentos/bebidas/vinhos), "
+        "evolucao temporal (dia a dia, semanal, mensal, anual), participacao percentual por dimensao, "
+        "variacao vs periodo anterior (crescimento/queda), vendas por horario ou ocasiao (almoco/jantar), "
+        "desempenho por funcionario, SSS (Same Store Sales), CMC% sobre vendas. "
         "QUANDO USAR: OBRIGATORIO chamar esta ferramenta para QUALQUER pergunta sobre vendas, faturamento, receita, "
         "ticket medio, fluxo de pessoas, descontos, produtos vendidos, funcionarios, horario de vendas, "
         "vendas por casa, vendas por categoria (alimentos, bebidas, vinhos), vendas por tipo de produto "
@@ -148,6 +150,9 @@ class DremioSalesQueryTool(BaseTool):
 class DremioDeliveryQueryTool(BaseTool):
     name: str = "consultar_delivery"
     description: str = (
+        "ANALISES SUPORTADAS: faturamento delivery por plataforma (iFood/Rappi/app proprio), participacao de cada "
+        "canal no total, evolucao temporal do delivery, ticket medio por plataforma, mix de produtos no delivery, "
+        "comparativo delivery vs salao, fluxo de pedidos por horario ou ocasiao. "
         "QUANDO USAR: OBRIGATORIO chamar esta ferramenta para QUALQUER pergunta sobre DELIVERY — "
         "pedidos delivery, faturamento delivery, vendas delivery, plataformas de entrega (iFood, Rappi, app proprio). "
         "PALAVRAS-CHAVE que ativam esta ferramenta: delivery, entrega, ifood, rappi, app proprio, pedido delivery, "
@@ -198,6 +203,9 @@ class DremioDeliveryQueryTool(BaseTool):
 class DremioEstornosQueryTool(BaseTool):
     name: str = "consultar_estornos"
     description: str = (
+        "ANALISES SUPORTADAS: total de estornos por casa/periodo, ranking de motivos de estorno, "
+        "produtos mais estornados, estornos por funcionario, percentual de perda (perda=1), "
+        "evolucao de estornos ao longo do tempo, estornos por categoria de produto. "
         "QUANDO USAR: OBRIGATORIO chamar esta ferramenta para QUALQUER pergunta sobre ESTORNOS, "
         "cancelamentos ou devoluções de produtos. "
         "PALAVRAS-CHAVE que ativam esta ferramenta: estorno, estornos, cancelamento, cancelamentos, "
@@ -246,6 +254,10 @@ class DremioEstornosQueryTool(BaseTool):
 class DremioMetasQueryTool(BaseTool):
     name: str = "consultar_metas"
     description: str = (
+        "ANALISES SUPORTADAS: atingimento de meta por casa/alavanca/periodo, delta realizado vs orcado (R$ e %), "
+        "ranking de casas acima/abaixo da meta, fluxo vs meta de fluxo, evolucao do atingimento ao longo do tempo, "
+        "projecao de fechamento de mes (se o usuario pedir). Para qualquer analise que combine realizado vs meta, "
+        "use CTE juntando fSales e dMetas_Casas em uma unica query. "
         "QUANDO USAR: OBRIGATORIO chamar esta ferramenta para QUALQUER pergunta sobre METAS, orcamento, "
         "budget, atingimento, delta de meta, real vs meta, realizado vs orcado, fluxo vs meta. "
         "PALAVRAS-CHAVE que ativam esta ferramenta: meta, metas, orcamento, budget, atingimento, "
@@ -291,6 +303,9 @@ class DremioMetasQueryTool(BaseTool):
 class DremioPaymentQueryTool(BaseTool):
     name: str = "consultar_formas_pagamento"
     description: str = (
+        "ANALISES SUPORTADAS: mix de formas de pagamento (participacao % de cada meio), evolucao do uso de "
+        "pix/cartao/dinheiro ao longo do tempo, comparativo de meios de pagamento entre casas, "
+        "concentracao por forma de pagamento, tendencia de adocao de pagamento digital. "
         "QUANDO USAR: OBRIGATORIO chamar esta ferramenta para QUALQUER pergunta sobre FORMAS DE PAGAMENTO, "
         "mix de pagamentos, participacao por forma de pagamento, faturamento por pagamento. "
         "PALAVRAS-CHAVE que ativam esta ferramenta: forma de pagamento, formas de pagamento, "
@@ -328,6 +343,9 @@ class DremioPaymentQueryTool(BaseTool):
 class DremioCortesiasQueryTool(BaseTool):
     name: str = "consultar_cortesias"
     description: str = (
+        "ANALISES SUPORTADAS: total de cortesias por casa/periodo, ranking de funcionarios que mais concederam "
+        "cortesias, produtos mais cortesiados, participacao de cortesias por tipo (desconto conta vs desconto itens), "
+        "evolucao temporal de cortesias, cortesias por categoria de produto, percentual de cortesia sobre vendas. "
         "QUANDO USAR: OBRIGATORIO chamar esta ferramenta para QUALQUER pergunta sobre CORTESIAS — "
         "itens cortesia, produtos cortesia, cortesia por funcionario, cortesia por produto, "
         "valor de cortesias, quantidade de cortesias, cortesia por casa ou por alavanca. "

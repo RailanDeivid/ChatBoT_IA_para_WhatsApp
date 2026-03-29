@@ -88,7 +88,6 @@ async def buffer_message(chat_id: str, message: str, sender_name: str = "", mess
     await redis_client.rpush(buffer_key, message)
     await redis_client.expire(buffer_key, BUFFER_TTL)
 
-    # Armazena ID da última mensagem para reagir depois
     if message_id:
         await redis_client.setex(f"{chat_id}:last_msg_id", BUFFER_TTL, message_id)
 
@@ -126,7 +125,6 @@ async def handle_debounce(chat_id: str, sender_name: str = "") -> None:
 
             last_msg_id = await redis_client.get(f"{chat_id}:last_msg_id")
 
-            # Mantém "digitando..." enquanto o agente processa
             stop_typing = asyncio.Event()
             typing_task = asyncio.create_task(_keep_typing(chat_id, loop, stop_typing))
 

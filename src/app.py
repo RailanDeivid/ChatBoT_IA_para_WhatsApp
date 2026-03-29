@@ -12,7 +12,7 @@ from src.integrations.evolution_api import get_media_base64, send_whatsapp_messa
 from src.integrations.transcribe import transcribe_audio
 from src.access_control import init_db, is_authorized, is_admin, authorize, revoke, unblock, delete_user, update_phone, list_users, get_user_nome
 from src.memory import clear_session, clear_all_sessions, get_session_messages
-from src.config import UNAUTHORIZED_MESSAGE, REDIS_URL, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, EVOLUTION_AUTHENTICATION_API_KEY
+from src.config import UNAUTHORIZED_MESSAGE, REDIS_URL, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, EVOLUTION_AUTHENTICATION_API_KEY, SUPPORT_CONTACT
 
 
 class _EvolutionKey(BaseModel):
@@ -56,9 +56,11 @@ _redis = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
 async def _is_rate_limited(phone: str) -> bool:
     key = f"rl:{phone}"
-    count = await _redis.incr(key)
-    if count == 1:
-        await _redis.expire(key, RATE_LIMIT_WINDOW)
+    # Pipeline garante atomicidade: INCR + EXPIRE na mesma transação Redis
+    async with _redis.pipeline(transaction=True) as pipe:
+        await pipe.incr(key)
+        await pipe.expire(key, RATE_LIMIT_WINDOW)
+        count, _ = await pipe.execute()
     return count > RATE_LIMIT_MAX
 
 
@@ -70,11 +72,18 @@ async def health():
 
 @app.get("/metrics")
 async def metrics():
-    keys = await _redis.keys("metrics:*")
+    # scan é mais seguro que keys() — não bloqueia Redis em produção com muitas chaves
+    all_keys: list[str] = []
+    cursor = 0
+    while True:
+        cursor, batch = await _redis.scan(cursor, match="metrics:*", count=100)
+        all_keys.extend(batch)
+        if cursor == 0:
+            break
     raw: dict[str, int] = {}
-    if keys:
-        values = await _redis.mget(*keys)
-        raw = {k.removeprefix("metrics:"): int(v) for k, v in zip(keys, values) if v}
+    if all_keys:
+        values = await _redis.mget(*all_keys)
+        raw = {k.removeprefix("metrics:"): int(v) for k, v in zip(all_keys, values) if v}
 
     requests_total = raw.get("requests_total", 0)
     cache_hits = raw.get("cache_hits", 0)
@@ -160,28 +169,23 @@ async def webhook(payload: EvolutionWebhookPayload):
         or (msg_content.extendedTextMessage or {}).get("text")
     )
 
-    # Ignora grupos
     if not chat_id or "@g.us" in chat_id:
         logger.debug("Mensagem de grupo ignorada (chat_id=%s).", chat_id)
         return {"status": "ok"}
 
-    # Extrai só o número (remove @s.whatsapp.net)
     phone = chat_id.split("@")[0]
 
-    # --- Controle de acesso ---
     if not is_authorized(phone):
         logger.info("Acesso negado para %s (%s)", sender_name or phone, phone)
         prefixo = f"{sender_name} não está autorizado" if sender_name else "Você não está autorizado"
-        send_whatsapp_message(chat_id, f"Olá! {prefixo} a usar este assistente. Entre em contato com o setor de dados (Luiz Mateus ou Railan)")
+        send_whatsapp_message(chat_id, f"Olá! {prefixo} a usar este assistente. Entre em contato com {SUPPORT_CONTACT}.")
         return {"status": "ok"}
 
-    # --- Rate limiting ---
     if await _is_rate_limited(phone):
         logger.warning("Rate limit atingido para %s", phone)
         send_whatsapp_message(chat_id, "Você está enviando mensagens muito rapidamente. Aguarde um momento.")
         return {"status": "ok"}
 
-    # --- Confirmação pendente de /limpar (admin) ---
     _limpar_key = f"pending_limpar:{phone}"
     if is_admin(phone) and await _redis.exists(_limpar_key):
         await _redis.delete(_limpar_key)
@@ -204,7 +208,6 @@ async def webhook(payload: EvolutionWebhookPayload):
         send_whatsapp_message(chat_id, reply)
         return {"status": "ok"}
 
-    # --- Comandos admin ---
     if message and message.startswith("/"):
         if is_admin(phone):
             # /limpar requer confirmação — intercepta antes de _handle_admin_command
@@ -229,14 +232,12 @@ async def webhook(payload: EvolutionWebhookPayload):
             send_whatsapp_message(chat_id, "Comando não reconhecido.")
             return {"status": "ok"}
 
-    # Se não tem texto mas tem áudio, transcreve com Whisper
     if not message and msg_content.audioMessage:
         audio_b64 = get_media_base64(key.model_dump())
         if audio_b64:
             message = transcribe_audio(audio_b64)
             logger.info("Áudio transcrito de %s: %.80s", sender_name or chat_id, message)
 
-    # Ignora mensagens sem texto (sticker, imagem sem legenda, reação, etc.)
     if not message:
         logger.debug("Mensagem sem texto ignorada (chat_id=%s, tipo provavelmente midia/sticker/reacao).", chat_id)
         return {"status": "ok"}
@@ -313,8 +314,8 @@ def _handle_admin_command(message: str, admin_phone: str, sender_name: str = "")
         if len(parts_h) >= 2:
             try:
                 days_arg = int(parts_h[1])
-                if days_arg <= 0:
-                    return _param_error("/historico 5511999999999 [dias]  — o número de dias deve ser maior que zero")
+                if days_arg <= 0 or days_arg > 365:
+                    return _param_error("/historico 5511999999999 [dias]  — o número de dias deve ser entre 1 e 365")
             except ValueError:
                 return _param_error("/historico 5511999999999 [dias]")
         return _cmd_historico(phone_arg, days=days_arg)
